@@ -15,16 +15,21 @@
                 <n-scrollbar style="max-height: 40vh">
                     <n-list v-if="usbDevices.length" hoverable clickable bordered>
                         <n-list-item v-for="(device, index) in usbDevices" :key="index"
-                            :class="{ selected: selectedDevice === device }" @click="selectUsbDevice(device)">
-                            <n-thing :title="device" content-style="margin-top: 10px;">
+                            :class="{ selected: selectedDevice === device.product_string }" @click="selectUsbDevice(device.product_string)">
+                            <n-thing :title="device.product_string" content-style="margin-top: 10px;">
                                 <template #description>
                                     <n-space size="small" style="margin-top: 4px">
                                         <n-tag :bordered="false" type="info" size="small">
-                                            USB Device
+                                            Vendor ID: {{ "0x" + Number(device.vendor_id).toString(16).toUpperCase() }}
+                                        </n-tag>
+                                        <n-tag :bordered="false" type="info" size="small">
+                                            Product ID: {{ "0x" + Number(device.product_id).toString(16).toUpperCase() }}
+                                        </n-tag>
+                                        <n-tag :bordered="false" type="info" size="small">
+                                            Address: {{ device.device_address }}
                                         </n-tag>
                                     </n-space>
                                 </template>
-                                Click to select this device.
                             </n-thing>
                         </n-list-item>
                     </n-list>
@@ -63,12 +68,18 @@
                 <n-scrollbar style="max-height: 40vh">
                     <n-list v-if="usbDevices.length" hoverable clickable bordered>
                         <n-list-item v-for="(device, index) in usbDevices" :key="index"
-                            :class="{ selected: selectedDevice === device }" @click="selectUsbDevice(device)">
-                            <n-thing :title="device" content-style="margin-top: 10px;">
+                            :class="{ selected: selectedDevice === device.product_string }" @click="selectUsbDevice(device.product_string)">
+                            <n-thing :title="device.product_string" content-style="margin-top: 10px;">
                                 <template #description>
                                     <n-space size="small" style="margin-top: 4px">
                                         <n-tag :bordered="false" type="info" size="small">
-                                            USB Device
+                                            Vendor ID: {{ "0x" + Number(device.vendor_id).toString(16).toUpperCase() }}
+                                        </n-tag>
+                                        <n-tag :bordered="false" type="info" size="small">
+                                            Product ID: {{ "0x" + Number(device.product_id).toString(16).toUpperCase() }}
+                                        </n-tag>
+                                        <n-tag :bordered="false" type="info" size="small">
+                                            Address: {{ device.device_address }}
                                         </n-tag>
                                     </n-space>
                                 </template>
@@ -128,6 +139,12 @@ import { ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { NCard, NSteps, NStep, NButton, NUpload, NUploadFileList, NAlert, NScrollbar, NList, NListItem, NThing, NSpace, NTag, type UploadFileInfo } from "naive-ui";
 
+interface USBDevice {
+    vendor_id: string;
+    product_id: string;
+    product_string: string;
+    device_address: string;
+}
 
 const currentStep = ref(1);
 const isProcessing = ref(false);
@@ -138,14 +155,14 @@ const files = ref<{ [key: string]: UploadFileInfo[] }>({
     rootExt4: [],
 });
 
-const usbDevices = ref<string[]>([]);
+const usbDevices = ref<USBDevice[]>([]);
 const selectedDevice = ref<string | null>(null);
 
 async function refreshUsbDevices() {
     isProcessing.value = true;
     status.value = "Refreshing USB device list...";
     try {
-        const devices = await invoke<string[]>("list_usb_devices");
+        const devices = await invoke<USBDevice[]>("list_usb_devices");
         usbDevices.value = devices;
         status.value = "USB device list refreshed.";
     } catch (error: any) {

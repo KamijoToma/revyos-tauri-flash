@@ -38,6 +38,8 @@ fn connect_to_stage2() -> Result<String, String> {
     Ok("Connected to stage 2 USB device.".to_string())
 }
 
+
+
 #[command]
 fn flash_files_to_device(
     uboot_path: String,
@@ -77,31 +79,40 @@ fn select_file(window: tauri::Window) -> Result<String, String> {
     Ok(path.to_string_lossy().to_string())
 }
 
-#[command]
-fn list_usb_devices() -> Result<Vec<String>, String> {
-    // Stub implementation
-    let mut devices: Vec<String>= Vec::new();
-    for dev in nusb::list_devices().unwrap() {
-        devices.push(dev.product_string().unwrap_or_else(|| "Unknown").to_string());
+use serde::Serialize;
+
+#[derive(Serialize)]
+struct USBDevice {
+    vendor_id: u16,
+    product_id: u16,
+    product_string: String,
+    device_address: u8,
+}
+
+impl From<nusb::DeviceInfo> for USBDevice {
+    fn from(device: nusb::DeviceInfo) -> Self {
+        USBDevice {
+            vendor_id: device.vendor_id(),
+            product_id: device.product_id(),
+            product_string: device.product_string().unwrap_or_else(|| "Unknown").to_string(),
+            device_address: device.device_address(),
+        }
     }
-    devices.sort();
+}
+
+#[command]
+fn list_usb_devices() -> Result<Vec<USBDevice>, String> {
+    let mut devices: Vec<USBDevice> = Vec::new();
+    for dev in nusb::list_devices().unwrap() {
+        devices.push(dev.into());
+    }
+    devices.sort_by(|a, b| a.product_string.cmp(&b.product_string));
     Ok(devices)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_list_usb_devices() {
-        let result = list_usb_devices();
-        assert!(result.is_ok());
-        let devices = result.unwrap();
-        assert!(devices.contains(&"USB Device 1".to_string()));
-        assert!(devices.contains(&"USB Device 2".to_string()));
-        assert!(devices.contains(&"USB Device 3".to_string()));
-        assert_eq!(devices.len(), 3);
-    }
 
     // #[tokio::test]
     // async fn test_fastboot_protocol() -> anyhow::Result<()> {
