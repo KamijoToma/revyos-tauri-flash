@@ -74,8 +74,9 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import * as fastboot from "android-fastboot-ts";
+import { invoke } from "@tauri-apps/api/core";
 import { NCard, NSteps, NStep, NButton, NUpload, NAlert, NScrollbar, type UploadFileInfo } from "naive-ui";
+
 
 const currentStep = ref(1);
 const isProcessing = ref(false);
@@ -85,31 +86,17 @@ const files = ref<{ [key: string]: UploadFileInfo[] }>({
     bootExt4: [],
     rootExt4: [],
 });
-const device = new fastboot.FastbootDevice();
-
-// Enable verbose debug logging
-fastboot.setDebugLevel(2);
 
 function onFileSelected(key: string, event: { file: UploadFileInfo }) {
-    const { file } = event;
-    files.value[key] = [
-        {
-            id: Date.now().toString(),
-            name: file.name,
-            status: 'finished',
-            file: file.file as File,
-        },
-    ];
+    files.value[key] = [event.file];
 }
 
 async function connectToDevice() {
     isProcessing.value = true;
     status.value = "Connecting to stage 1 USB device...";
     try {
-        await device.connect();
-        const product = await device.getVariable("product");
-        const serial = await device.getVariable("serialno");
-        status.value = `Connected to ${product} (serial: ${serial})`;
+        const result = await invoke<string>("connect_to_device");
+        status.value = result;
     } catch (error: any) {
         status.value = `Error: ${error.message}`;
     } finally {
@@ -118,12 +105,14 @@ async function connectToDevice() {
 }
 
 async function flashUbootToRam() {
-    if (!files.value.ubootBin) return;
+    if (!files.value.ubootBin.length) return;
     isProcessing.value = true;
     status.value = "Flashing uboot.bin to RAM...";
     try {
-        await device.flashBlob("ram", files.value.ubootBin[0].file as Blob);
-        status.value = "Flashed uboot.bin to RAM successfully.";
+        const result = await invoke<string>("flash_uboot_to_ram", {
+            filePath: files.value.ubootBin[0].name,
+        });
+        status.value = result;
     } catch (error: any) {
         status.value = `Error: ${error.message}`;
     } finally {
@@ -135,8 +124,8 @@ async function rebootToStage2() {
     isProcessing.value = true;
     status.value = "Rebooting to stage 2...";
     try {
-        await device.runCommand("reboot");
-        status.value = "Rebooted to stage 2.";
+        const result = await invoke<string>("reboot_to_stage2");
+        status.value = result;
     } catch (error: any) {
         status.value = `Error: ${error.message}`;
     } finally {
@@ -148,16 +137,8 @@ async function connectToStage2() {
     isProcessing.value = true;
     status.value = "Waiting for stage 2 USB device...";
     try {
-        let connected = false;
-        while (!connected) {
-            try {
-                await device.connect();
-                connected = true;
-            } catch {
-                await new Promise((resolve) => setTimeout(resolve, 1000));
-            }
-        }
-        status.value = "Connected to stage 2 USB device.";
+        const result = await invoke<string>("connect_to_stage2");
+        status.value = result;
     } catch (error: any) {
         status.value = `Error: ${error.message}`;
     } finally {
@@ -166,14 +147,17 @@ async function connectToStage2() {
 }
 
 async function flashFilesToDevice() {
-    if (!files.value.ubootBin || !files.value.bootExt4 || !files.value.rootExt4) return;
+    if (!files.value.ubootBin.length || !files.value.bootExt4.length || !files.value.rootExt4.length) return;
     isProcessing.value = true;
     status.value = "Flashing files to device...";
+    // uboot_path, boot_path, root_path
     try {
-        await device.flashBlob("uboot", files.value.ubootBin[0].file as Blob);
-        await device.flashBlob("boot", files.value.bootExt4[0].file as Blob);
-        await device.flashBlob("root", files.value.rootExt4[0].file as Blob);
-        status.value = "Flashed all files successfully.";
+        const result = await invoke<string>("flash_files_to_device", {
+            ubootPath: files.value.ubootBin[0].name,
+            bootPath: files.value.bootExt4[0].name,
+            rootPath: files.value.rootExt4[0].name,
+        });
+        status.value = result;
     } catch (error: any) {
         status.value = `Error: ${error.message}`;
     } finally {
@@ -185,8 +169,8 @@ async function rebootDevice() {
     isProcessing.value = true;
     status.value = "Rebooting the device...";
     try {
-        await device.runCommand("reboot");
-        status.value = "Device rebooted successfully.";
+        const result = await invoke<string>("reboot_device");
+        status.value = result;
     } catch (error: any) {
         status.value = `Error: ${error.message}`;
     } finally {
