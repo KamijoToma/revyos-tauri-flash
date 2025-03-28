@@ -10,5 +10,8 @@ import FastBootFlash from "./FastBootFlash.vue"; // Import FastBootFlash compone
 </template>
 
 <style>
-
+.container .app {
+  width: 100vh;
+  height: 100vh;
+}
 </style>
