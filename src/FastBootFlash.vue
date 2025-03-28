@@ -19,10 +19,11 @@
         </div>
         <div v-else-if="currentStep === 2">
             <n-card title="Step 2: Flash uboot.bin to RAM">
-                <n-upload v-model:file-list="files.ubootBin" :max="1" accept=".bin" @change="onFileSelected('ubootBin', $event)">
-                    <n-button type="default">Select uboot.bin</n-button>
+                <n-upload v-model:file-list="files.ubootBin" :max="1" accept=".bin" @change="onFileSelected('ubootBin', $event)" abstract>
+                    <n-button type="default" @click="selectFile('ubootBin')">Select uboot.bin</n-button>
+                    <n-upload-file-list/>
                 </n-upload>
-                <n-button @click="flashUbootToRam" :disabled="!files.ubootBin || isProcessing" :loading="isProcessing" type="primary">
+                <n-button @click="flashUbootToRam" :disabled="!files.ubootBin.length || isProcessing" :loading="isProcessing" type="primary">
                     {{ isProcessing ? "Flashing..." : "Flash to RAM" }}
                 </n-button>
             </n-card>
@@ -43,14 +44,17 @@
         </div>
         <div v-else-if="currentStep === 5">
             <n-card title="Step 5: Flash Files to Device">
-                <n-upload v-model:file-list="files.ubootBin" :max="1" accept=".bin" @change="onFileSelected('ubootBin', $event)">
-                    <n-button type="default">Select uboot.bin</n-button>
+                <n-upload v-model:file-list="files.ubootBin" :max="1" @change="onFileSelected('ubootBin', $event)" abstract>
+                    <n-button @click="selectFile('ubootBin')" type="default">Select uboot.bin</n-button>
+                    <n-upload-file-list/>
                 </n-upload>
-                <n-upload v-model:file-list="files.bootExt4" :max="1" accept=".ext4" @change="onFileSelected('bootExt4', $event)">
-                    <n-button type="default">Select boot.ext4</n-button>
+                <n-upload v-model:file-list="files.bootExt4" :max="1" @change="onFileSelected('bootExt4', $event)" abstract>
+                    <n-button @click="selectFile('bootExt4')" type="default">Select boot.ext4</n-button>
+                    <n-upload-file-list/>
                 </n-upload>
-                <n-upload v-model:file-list="files.rootExt4" :max="1" accept=".ext4" @change="onFileSelected('rootExt4', $event)">
-                    <n-button type="default">Select root.ext4</n-button>
+                <n-upload v-model:file-list="files.rootExt4" :max="1" @change="onFileSelected('rootExt4', $event)" abstract>
+                    <n-button @click="selectFile('rootExt4')" type="default">Select root.ext4</n-button>
+                    <n-upload-file-list/>
                 </n-upload>
                 <n-button @click="flashFilesToDevice" :disabled="!files.ubootBin || !files.bootExt4 || !files.rootExt4 || isProcessing" :loading="isProcessing" type="primary">
                     {{ isProcessing ? "Flashing..." : "Flash Files" }}
@@ -75,7 +79,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { NCard, NSteps, NStep, NButton, NUpload, NAlert, NScrollbar, type UploadFileInfo } from "naive-ui";
+import { NCard, NSteps, NStep, NButton, NUpload, NUploadFileList, NAlert, NScrollbar, type UploadFileInfo } from "naive-ui";
 
 
 const currentStep = ref(1);
@@ -110,11 +114,11 @@ async function flashUbootToRam() {
     status.value = "Flashing uboot.bin to RAM...";
     try {
         const result = await invoke<string>("flash_uboot_to_ram", {
-            filePath: files.value.ubootBin[0].name,
+            filePath: files.value.ubootBin[0].fullPath, // Use the full file path
         });
         status.value = result;
     } catch (error: any) {
-        status.value = `Error: ${error.message}`;
+        status.value = `Error: ${error}`;
     } finally {
         isProcessing.value = false;
     }
@@ -150,12 +154,11 @@ async function flashFilesToDevice() {
     if (!files.value.ubootBin.length || !files.value.bootExt4.length || !files.value.rootExt4.length) return;
     isProcessing.value = true;
     status.value = "Flashing files to device...";
-    // uboot_path, boot_path, root_path
     try {
         const result = await invoke<string>("flash_files_to_device", {
-            ubootPath: files.value.ubootBin[0].name,
-            bootPath: files.value.bootExt4[0].name,
-            rootPath: files.value.rootExt4[0].name,
+            ubootPath: files.value.ubootBin[0].fullPath, // Use the full file path
+            bootPath: files.value.bootExt4[0].fullPath, // Use the full file path
+            rootPath: files.value.rootExt4[0].fullPath, // Use the full file path
         });
         status.value = result;
     } catch (error: any) {
@@ -178,6 +181,22 @@ async function rebootDevice() {
     }
 }
 
+async function selectFile(key: string) {
+    try {
+        const filePath = await invoke<string>("select_file");
+        if (filePath) {
+            files.value[key] = [{
+                id: Date.now().toString(), // Generate a unique ID
+                name: filePath.split(/[/\\]/).pop() || "",
+                fullPath: filePath,
+                status: "finished" // Set a default status
+            }];
+        }
+    } catch (error: any) {
+        status.value = `Error: ${error.message}`;
+    }
+}
+
 function nextStep() {
     if (currentStep.value < 6) currentStep.value++;
 }
@@ -186,7 +205,6 @@ function prevStep() {
     if (currentStep.value > 1) currentStep.value--;
 }
 </script>
-
 <style scoped>
 .fastboot-flash {
     width: 100%; /* Take full width of the container */
