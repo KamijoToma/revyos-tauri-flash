@@ -142,7 +142,7 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, Channel } from "@tauri-apps/api/core";
 import { NCard, NSteps, NStep, NButton, NUpload, NUploadFileList, NAlert, NScrollbar, NList, NListItem, NThing, NSpace, NTag, type UploadFileInfo } from "naive-ui";
 
 interface USBDevice {
@@ -163,6 +163,11 @@ const files = ref<{ [key: string]: UploadFileInfo[] }>({
 
 const usbDevices = ref<USBDevice[]>([]);
 const selectedDevice = ref<USBDevice | null>(null); // Store the entire USBDevice object
+
+type UploadProgressEvent = { 
+    event: "progress",
+    data: { current: number, total: number }
+ };
 
 async function refreshUsbDevices() {
     isProcessing.value = true;
@@ -200,14 +205,25 @@ async function flashUbootToRam() {
     if (!files.value.ubootBin.length) return;
     isProcessing.value = true;
     status.value = "Flashing uboot.bin to RAM...";
+    // Register upload event listener
+    const onProgressEvent = new Channel<UploadProgressEvent>();
+    onProgressEvent.onmessage = (event) => {
+        const { current, total } = event.data;
+        files.value.ubootBin[0].percentage = current / total * 100;
+    };
     try {
-        const result = await invoke<string>("flash_uboot_to_ram", {
+        files.value.ubootBin[0].status = "uploading";
+        const result = await invoke<string>("flash_to_partition", {
             filePath: files.value.ubootBin[0].fullPath, // Use the full file path
-            device: selectedDevice.value
+            partition: "ram", // Flash to RAM
+            device: selectedDevice.value,
+            onEvent: onProgressEvent,
         });
+        files.value.ubootBin[0].status = "finished";
         status.value = result;
     } catch (error: any) {
         status.value = `Error: ${error}`;
+        files.value.ubootBin[0].status = "error";
     } finally {
         isProcessing.value = false;
     }
@@ -244,15 +260,61 @@ async function flashFilesToDevice() {
     if (!files.value.ubootBin.length || !files.value.bootExt4.length || !files.value.rootExt4.length) return;
     isProcessing.value = true;
     status.value = "Flashing files to device...";
+    
+    const onProgressEvent = new Channel<UploadProgressEvent>();
+    onProgressEvent.onmessage = (event) => {
+        const { current, total } = event.data;
+        const percentage = current / total * 100;
+
+        if (files.value.ubootBin[0]?.status === "uploading") {
+            files.value.ubootBin[0].percentage = percentage;
+        } else if (files.value.bootExt4[0]?.status === "uploading") {
+            files.value.bootExt4[0].percentage = percentage;
+        } else if (files.value.rootExt4[0]?.status === "uploading") {
+            files.value.rootExt4[0].percentage = percentage;
+        }
+    };
+
     try {
-        const result = await invoke<string>("flash_files_to_device", {
-            ubootPath: files.value.ubootBin[0].fullPath, // Use the full file path
-            bootPath: files.value.bootExt4[0].fullPath, // Use the full file path
-            rootPath: files.value.rootExt4[0].fullPath, // Use the full file path
+        files.value.ubootBin[0].status = "uploading";
+        await invoke<string>("flash_to_partition", {
+            filePath: files.value.ubootBin[0].fullPath,
+            partition: "uboot",
+            device: selectedDevice.value,
+            onEvent: onProgressEvent,
         });
-        status.value = result;
+        files.value.ubootBin[0].status = "finished";
+
+        files.value.bootExt4[0].status = "uploading";
+        await invoke<string>("flash_to_partition", {
+            filePath: files.value.bootExt4[0].fullPath,
+            partition: "boot",
+            device: selectedDevice.value,
+            onEvent: onProgressEvent,
+        });
+        files.value.bootExt4[0].status = "finished";
+
+        files.value.rootExt4[0].status = "uploading";
+        await invoke<string>("flash_to_partition", {
+            filePath: files.value.rootExt4[0].fullPath,
+            partition: "root",
+            device: selectedDevice.value,
+            onEvent: onProgressEvent,
+        });
+        files.value.rootExt4[0].status = "finished";
+
+        status.value = "All files flashed successfully.";
     } catch (error: any) {
-        status.value = `Error: ${error.message}`;
+        if (files.value.ubootBin[0]?.status === "uploading") {
+            files.value.ubootBin[0].status = "error";
+            status.value = `Error flashing uboot.bin: ${error.message}`;
+        } else if (files.value.bootExt4[0]?.status === "uploading") {
+            files.value.bootExt4[0].status = "error";
+            status.value = `Error flashing boot.ext4: ${error.message}`;
+        } else if (files.value.rootExt4[0]?.status === "uploading") {
+            files.value.rootExt4[0].status = "error";
+            status.value = `Error flashing root.ext4: ${error.message}`;
+        }
     } finally {
         isProcessing.value = false;
     }
@@ -262,7 +324,7 @@ async function rebootDevice() {
     isProcessing.value = true;
     status.value = "Rebooting the device...";
     try {
-        const result = await invoke<string>("reboot_device");
+        const result = await invoke<string>("reboot_device", { device: selectedDevice.value });
         status.value = result;
     } catch (error: any) {
         status.value = `Error: ${error.message}`;

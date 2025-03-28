@@ -42,6 +42,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "android-sparse-image"
+version = "0.1.2"
+source = "git+https://github.com/KamijoToma/fastboot-rs?rev=ba7d10a717bae69a23d78908f510345ff52b4e9b#ba7d10a717bae69a23d78908f510345ff52b4e9b"
+dependencies = [
+ "bytes",
+ "log",
+ "strum",
+ "thiserror 2.0.12",
+]
+
+[[package]]
 name = "android-tzdata"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -928,7 +939,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33d852cb9b869c2a9b3df2f71a3074817f01e1844f839a144f5fcef059a4eb5d"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -955,7 +966,7 @@ dependencies = [
 [[package]]
 name = "fastboot-protocol"
 version = "0.2.1"
-source = "git+https://github.com/KamijoToma/fastboot-rs?rev=1f35b424109d40570ba30ba5976e129f09b60701#1f35b424109d40570ba30ba5976e129f09b60701"
+source = "git+https://github.com/KamijoToma/fastboot-rs?rev=ba7d10a717bae69a23d78908f510345ff52b4e9b#ba7d10a717bae69a23d78908f510345ff52b4e9b"
 dependencies = [
  "bytes",
  "futures",
@@ -3088,6 +3099,7 @@ dependencies = [
 name = "revyos-tauri-flash"
 version = "0.1.0"
 dependencies = [
+ "android-sparse-image",
  "anyhow",
  "fastboot-protocol",
  "nusb",
@@ -3150,7 +3162,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.4.15",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3163,7 +3175,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.9.3",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3556,6 +3568,28 @@ name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
+
+[[package]]
+name = "strum"
+version = "0.26.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8fec0f0aef304996cf250b31b5a10dee7980c85da9d759361292b8bca5a18f06"
+dependencies = [
+ "strum_macros",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.26.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c6bee85a5a24955dc440386795aa378cd9cf82acd5f764469152d2270e581be"
+dependencies = [
+ "heck 0.5.0",
+ "proc-macro2",
+ "quote",
+ "rustversion",
+ "syn 2.0.100",
+]
 
 [[package]]
 name = "swift-rs"
@@ -3977,7 +4011,7 @@ dependencies = [
  "getrandom 0.3.2",
  "once_cell",
  "rustix 1.0.3",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4659,7 +4693,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

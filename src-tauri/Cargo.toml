@@ -23,7 +23,8 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-dialog = "2"
-fastboot-protocol = { git = "https://github.com/KamijoToma/fastboot-rs", rev = "1f35b424109d40570ba30ba5976e129f09b60701"}
+fastboot-protocol = { git = "https://github.com/KamijoToma/fastboot-rs", rev = "ba7d10a717bae69a23d78908f510345ff52b4e9b"}
+android-sparse-image = { git = "https://github.com/KamijoToma/fastboot-rs", rev = "ba7d10a717bae69a23d78908f510345ff52b4e9b"}
 nusb = { git = "https://github.com/kevinmehall/nusb", rev = "a243514" }
 anyhow = "1.0.97"
 tokio = { version = "1.44.1", features = ["full"] }
