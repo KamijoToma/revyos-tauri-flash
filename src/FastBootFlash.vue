@@ -2,45 +2,39 @@
     <n-card title="RevyOS Fastboot Flash Utility" class="fastboot-flash">
         <n-scrollbar class="steps-container" x-scrollable>
             <n-steps :current="currentStep" size="small" class="steps">
-            <n-step title="Connect Stage 1" />
-            <n-step title="Flash uboot" />
-            <n-step title="Reboot to Stage 2" />
-            <n-step title="Connect Stage 2" />
-            <n-step title="Flash images" />
-            <n-step title="Reboot" />
+                <n-step title="Connect Stage 1" />
+                <n-step title="Flash uboot" />
+                <n-step title="Reboot to Stage 2" />
+                <n-step title="Connect Stage 2" />
+                <n-step title="Flash images" />
+                <n-step title="Reboot" />
             </n-steps>
         </n-scrollbar>
         <div v-if="currentStep === 1">
             <n-card title="Step 1: Connect to Stage 1 USB Device">
+                <n-scrollbar style="max-height: 40vh">
+                    <n-list v-if="usbDevices.length" hoverable clickable bordered>
+                        <n-list-item v-for="(device, index) in usbDevices" :key="index"
+                            :class="{ selected: selectedDevice === device }" @click="selectUsbDevice(device)">
+                            <n-thing :title="device" content-style="margin-top: 10px;">
+                                <template #description>
+                                    <n-space size="small" style="margin-top: 4px">
+                                        <n-tag :bordered="false" type="info" size="small">
+                                            USB Device
+                                        </n-tag>
+                                    </n-space>
+                                </template>
+                                Click to select this device.
+                            </n-thing>
+                        </n-list-item>
+                    </n-list>
+                    <n-alert v-else type="info">No USB devices found.</n-alert>
+                </n-scrollbar>
                 <n-button @click="refreshUsbDevices" :loading="isProcessing" type="default">
                     {{ isProcessing ? "Refreshing..." : "Refresh Device List" }}
                 </n-button>
-                <n-list v-if="usbDevices.length" hoverable clickable bordered>
-                    <n-list-item
-                        v-for="(device, index) in usbDevices"
-                        :key="index"
-                        :class="{ selected: selectedDevice === device }"
-                        @click="selectUsbDevice(device)"
-                    >
-                        <n-thing :title="device" content-style="margin-top: 10px;">
-                            <template #description>
-                                <n-space size="small" style="margin-top: 4px">
-                                    <n-tag :bordered="false" type="info" size="small">
-                                        USB Device
-                                    </n-tag>
-                                </n-space>
-                            </template>
-                            Click to select this device.
-                        </n-thing>
-                    </n-list-item>
-                </n-list>
-                <n-alert v-else type="info">No USB devices found.</n-alert>
-                <n-button
-                    @click="connectToDevice"
-                    :disabled="!selectedDevice || isProcessing"
-                    :loading="isProcessing"
-                    type="primary"
-                >
+                <n-button @click="connectToDevice" :disabled="!selectedDevice || isProcessing" :loading="isProcessing"
+                    type="primary">
                     {{ isProcessing ? "Connecting..." : "Connect" }}
                 </n-button>
             </n-card>
@@ -49,9 +43,10 @@
             <n-card title="Step 2: Flash uboot.bin to RAM">
                 <n-upload v-model:file-list="files.ubootBin" :max="1" accept=".bin" abstract>
                     <n-button type="default" @click="selectFile('ubootBin')">Select uboot.bin</n-button>
-                    <n-upload-file-list/>
+                    <n-upload-file-list />
                 </n-upload>
-                <n-button @click="flashUbootToRam" :disabled="!files.ubootBin.length || isProcessing" :loading="isProcessing" type="primary">
+                <n-button @click="flashUbootToRam" :disabled="!files.ubootBin.length || isProcessing"
+                    :loading="isProcessing" type="primary">
                     {{ isProcessing ? "Flashing..." : "Flash to RAM" }}
                 </n-button>
             </n-card>
@@ -65,35 +60,29 @@
         </div>
         <div v-else-if="currentStep === 4">
             <n-card title="Step 4: Connect to Stage 2 USB Device">
+                <n-scrollbar style="max-height: 40vh">
+                    <n-list v-if="usbDevices.length" hoverable clickable bordered>
+                        <n-list-item v-for="(device, index) in usbDevices" :key="index"
+                            :class="{ selected: selectedDevice === device }" @click="selectUsbDevice(device)">
+                            <n-thing :title="device" content-style="margin-top: 10px;">
+                                <template #description>
+                                    <n-space size="small" style="margin-top: 4px">
+                                        <n-tag :bordered="false" type="info" size="small">
+                                            USB Device
+                                        </n-tag>
+                                    </n-space>
+                                </template>
+                                Click to select this device.
+                            </n-thing>
+                        </n-list-item>
+                    </n-list>
+                    <n-alert v-else type="info">No USB devices found.</n-alert>
+                </n-scrollbar>
                 <n-button @click="refreshUsbDevices" :loading="isProcessing" type="default">
                     {{ isProcessing ? "Refreshing..." : "Refresh Device List" }}
                 </n-button>
-                <n-list v-if="usbDevices.length" hoverable clickable bordered>
-                    <n-list-item
-                        v-for="(device, index) in usbDevices"
-                        :key="index"
-                        :class="{ selected: selectedDevice === device }"
-                        @click="selectUsbDevice(device)"
-                    >
-                        <n-thing :title="device" content-style="margin-top: 10px;">
-                            <template #description>
-                                <n-space size="small" style="margin-top: 4px">
-                                    <n-tag :bordered="false" type="info" size="small">
-                                        USB Device
-                                    </n-tag>
-                                </n-space>
-                            </template>
-                            Click to select this device.
-                        </n-thing>
-                    </n-list-item>
-                </n-list>
-                <n-alert v-else type="info">No USB devices found.</n-alert>
-                <n-button
-                    @click="connectToStage2"
-                    :disabled="!selectedDevice || isProcessing"
-                    :loading="isProcessing"
-                    type="primary"
-                >
+                <n-button @click="connectToStage2" :disabled="!selectedDevice || isProcessing" :loading="isProcessing"
+                    type="primary">
                     {{ isProcessing ? "Connecting..." : "Connect" }}
                 </n-button>
             </n-card>
@@ -102,17 +91,19 @@
             <n-card title="Step 5: Flash Files to Device">
                 <n-upload v-model:file-list="files.ubootBin" :max="1" abstract>
                     <n-button @click="selectFile('ubootBin')" type="default">Select uboot.bin</n-button>
-                    <n-upload-file-list/>
+                    <n-upload-file-list />
                 </n-upload>
                 <n-upload v-model:file-list="files.bootExt4" :max="1" abstract>
                     <n-button @click="selectFile('bootExt4')" type="default">Select boot.ext4</n-button>
-                    <n-upload-file-list/>
+                    <n-upload-file-list />
                 </n-upload>
                 <n-upload v-model:file-list="files.rootExt4" :max="1" abstract>
                     <n-button @click="selectFile('rootExt4')" type="default">Select root.ext4</n-button>
-                    <n-upload-file-list/>
+                    <n-upload-file-list />
                 </n-upload>
-                <n-button @click="flashFilesToDevice" :disabled="!files.ubootBin || !files.bootExt4 || !files.rootExt4 || isProcessing" :loading="isProcessing" type="primary">
+                <n-button @click="flashFilesToDevice"
+                    :disabled="!files.ubootBin || !files.bootExt4 || !files.rootExt4 || isProcessing"
+                    :loading="isProcessing" type="primary">
                     {{ isProcessing ? "Flashing..." : "Flash Files" }}
                 </n-button>
             </n-card>
