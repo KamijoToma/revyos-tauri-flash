@@ -68,7 +68,9 @@ fn reboot_device() -> Result<String, String> {
 
 #[command]
 fn select_file(window: tauri::Window) -> Result<String, String> {
-    let file_path = window.dialog().file()
+    let file_path = window
+        .dialog()
+        .file()
         .blocking_pick_file()
         .ok_or_else(|| "No file selected".to_string())?;
     let path = file_path.into_path().map_err(|e| e.to_string())?;
@@ -78,11 +80,47 @@ fn select_file(window: tauri::Window) -> Result<String, String> {
 #[command]
 fn list_usb_devices() -> Result<Vec<String>, String> {
     // Stub implementation
-    Ok(vec![
-        "USB Device 1".to_string(),
-        "USB Device 2".to_string(),
-        "USB Device 3".to_string(),
-    ])
+    let mut devices: Vec<String>= Vec::new();
+    for dev in nusb::list_devices().unwrap() {
+        devices.push(dev.product_string().unwrap_or_else(|| "Unknown").to_string());
+    }
+    devices.sort();
+    Ok(devices)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_list_usb_devices() {
+        let result = list_usb_devices();
+        assert!(result.is_ok());
+        let devices = result.unwrap();
+        assert!(devices.contains(&"USB Device 1".to_string()));
+        assert!(devices.contains(&"USB Device 2".to_string()));
+        assert!(devices.contains(&"USB Device 3".to_string()));
+        assert_eq!(devices.len(), 3);
+    }
+
+    // #[tokio::test]
+    // async fn test_fastboot_protocol() -> anyhow::Result<()> {
+    //     let mut devices = fastboot_protocol::nusb::devices()?;
+    //     let info = devices
+    //         .next()
+    //         .ok_or_else(|| anyhow::anyhow!("No Device found"))?;
+    //     let mut fb = fastboot_protocol::nusb::NusbFastBoot::from_info(&info)?;
+
+    //     println!("Fastboot version: {}", fb.get_var("version").await?);
+    //     Ok(())
+    // }
+
+    #[test]
+    fn test_list_usb_nusb() {
+        for dev in ::nusb::list_devices().unwrap() {
+            println!("Device: {:?}", dev);
+        }
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
