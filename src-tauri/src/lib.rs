@@ -75,6 +75,16 @@ fn select_file(window: tauri::Window) -> Result<String, String> {
     Ok(path.to_string_lossy().to_string())
 }
 
+#[command]
+fn list_usb_devices() -> Result<Vec<String>, String> {
+    // Stub implementation
+    Ok(vec![
+        "USB Device 1".to_string(),
+        "USB Device 2".to_string(),
+        "USB Device 3".to_string(),
+    ])
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -88,7 +98,8 @@ pub fn run() {
             connect_to_stage2,
             flash_files_to_device,
             reboot_device,
-            select_file // Register the new command
+            select_file,
+            list_usb_devices // Register the new command
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

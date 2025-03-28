@@ -12,14 +12,42 @@
         </n-scrollbar>
         <div v-if="currentStep === 1">
             <n-card title="Step 1: Connect to Stage 1 USB Device">
-                <n-button @click="connectToDevice" :loading="isProcessing" type="primary">
+                <n-button @click="refreshUsbDevices" :loading="isProcessing" type="default">
+                    {{ isProcessing ? "Refreshing..." : "Refresh Device List" }}
+                </n-button>
+                <n-list v-if="usbDevices.length" hoverable clickable bordered>
+                    <n-list-item
+                        v-for="(device, index) in usbDevices"
+                        :key="index"
+                        :class="{ selected: selectedDevice === device }"
+                        @click="selectUsbDevice(device)"
+                    >
+                        <n-thing :title="device" content-style="margin-top: 10px;">
+                            <template #description>
+                                <n-space size="small" style="margin-top: 4px">
+                                    <n-tag :bordered="false" type="info" size="small">
+                                        USB Device
+                                    </n-tag>
+                                </n-space>
+                            </template>
+                            Click to select this device.
+                        </n-thing>
+                    </n-list-item>
+                </n-list>
+                <n-alert v-else type="info">No USB devices found.</n-alert>
+                <n-button
+                    @click="connectToDevice"
+                    :disabled="!selectedDevice || isProcessing"
+                    :loading="isProcessing"
+                    type="primary"
+                >
                     {{ isProcessing ? "Connecting..." : "Connect" }}
                 </n-button>
             </n-card>
         </div>
         <div v-else-if="currentStep === 2">
             <n-card title="Step 2: Flash uboot.bin to RAM">
-                <n-upload v-model:file-list="files.ubootBin" :max="1" accept=".bin" @change="onFileSelected('ubootBin', $event)" abstract>
+                <n-upload v-model:file-list="files.ubootBin" :max="1" accept=".bin" abstract>
                     <n-button type="default" @click="selectFile('ubootBin')">Select uboot.bin</n-button>
                     <n-upload-file-list/>
                 </n-upload>
@@ -37,22 +65,50 @@
         </div>
         <div v-else-if="currentStep === 4">
             <n-card title="Step 4: Connect to Stage 2 USB Device">
-                <n-button @click="connectToStage2" :loading="isProcessing" type="primary">
-                    {{ isProcessing ? "Waiting..." : "Connect" }}
+                <n-button @click="refreshUsbDevices" :loading="isProcessing" type="default">
+                    {{ isProcessing ? "Refreshing..." : "Refresh Device List" }}
+                </n-button>
+                <n-list v-if="usbDevices.length" hoverable clickable bordered>
+                    <n-list-item
+                        v-for="(device, index) in usbDevices"
+                        :key="index"
+                        :class="{ selected: selectedDevice === device }"
+                        @click="selectUsbDevice(device)"
+                    >
+                        <n-thing :title="device" content-style="margin-top: 10px;">
+                            <template #description>
+                                <n-space size="small" style="margin-top: 4px">
+                                    <n-tag :bordered="false" type="info" size="small">
+                                        USB Device
+                                    </n-tag>
+                                </n-space>
+                            </template>
+                            Click to select this device.
+                        </n-thing>
+                    </n-list-item>
+                </n-list>
+                <n-alert v-else type="info">No USB devices found.</n-alert>
+                <n-button
+                    @click="connectToStage2"
+                    :disabled="!selectedDevice || isProcessing"
+                    :loading="isProcessing"
+                    type="primary"
+                >
+                    {{ isProcessing ? "Connecting..." : "Connect" }}
                 </n-button>
             </n-card>
         </div>
         <div v-else-if="currentStep === 5">
             <n-card title="Step 5: Flash Files to Device">
-                <n-upload v-model:file-list="files.ubootBin" :max="1" @change="onFileSelected('ubootBin', $event)" abstract>
+                <n-upload v-model:file-list="files.ubootBin" :max="1" abstract>
                     <n-button @click="selectFile('ubootBin')" type="default">Select uboot.bin</n-button>
                     <n-upload-file-list/>
                 </n-upload>
-                <n-upload v-model:file-list="files.bootExt4" :max="1" @change="onFileSelected('bootExt4', $event)" abstract>
+                <n-upload v-model:file-list="files.bootExt4" :max="1" abstract>
                     <n-button @click="selectFile('bootExt4')" type="default">Select boot.ext4</n-button>
                     <n-upload-file-list/>
                 </n-upload>
-                <n-upload v-model:file-list="files.rootExt4" :max="1" @change="onFileSelected('rootExt4', $event)" abstract>
+                <n-upload v-model:file-list="files.rootExt4" :max="1" abstract>
                     <n-button @click="selectFile('rootExt4')" type="default">Select root.ext4</n-button>
                     <n-upload-file-list/>
                 </n-upload>
@@ -79,7 +135,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { NCard, NSteps, NStep, NButton, NUpload, NUploadFileList, NAlert, NScrollbar, type UploadFileInfo } from "naive-ui";
+import { NCard, NSteps, NStep, NButton, NUpload, NUploadFileList, NAlert, NScrollbar, NList, NListItem, NThing, NSpace, NTag, type UploadFileInfo } from "naive-ui";
 
 
 const currentStep = ref(1);
@@ -91,13 +147,31 @@ const files = ref<{ [key: string]: UploadFileInfo[] }>({
     rootExt4: [],
 });
 
-function onFileSelected(key: string, event: { file: UploadFileInfo }) {
-    files.value[key] = [event.file];
+const usbDevices = ref<string[]>([]);
+const selectedDevice = ref<string | null>(null);
+
+async function refreshUsbDevices() {
+    isProcessing.value = true;
+    status.value = "Refreshing USB device list...";
+    try {
+        const devices = await invoke<string[]>("list_usb_devices");
+        usbDevices.value = devices;
+        status.value = "USB device list refreshed.";
+    } catch (error: any) {
+        status.value = `Error: ${error.message}`;
+    } finally {
+        isProcessing.value = false;
+    }
+}
+
+function selectUsbDevice(device: string) {
+    selectedDevice.value = device;
 }
 
 async function connectToDevice() {
+    if (!selectedDevice.value) return;
     isProcessing.value = true;
-    status.value = "Connecting to stage 1 USB device...";
+    status.value = `Connecting to ${selectedDevice.value}...`;
     try {
         const result = await invoke<string>("connect_to_device");
         status.value = result;
@@ -138,8 +212,9 @@ async function rebootToStage2() {
 }
 
 async function connectToStage2() {
+    if (!selectedDevice.value) return;
     isProcessing.value = true;
-    status.value = "Waiting for stage 2 USB device...";
+    status.value = `Connecting to ${selectedDevice.value}...`;
     try {
         const result = await invoke<string>("connect_to_stage2");
         status.value = result;
@@ -231,5 +306,10 @@ function prevStep() {
     margin-top: 20px;
     display: flex;
     justify-content: space-between;
+}
+
+.selected {
+    background-color: #e6f7ff;
+    cursor: pointer;
 }
 </style>
