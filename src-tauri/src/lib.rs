@@ -26,33 +26,34 @@ fn connect_to_device(device: USBDevice) -> Result<String, String> {
 async fn flash_uboot_to_ram(file_path: String, device: USBDevice) -> Result<String, String> {
     // Use the full file path directly
     if !std::path::Path::new(&file_path).exists() {
-        return Err(format!("File not found: {}", file_path))
+        return Err(format!("File not found: {}", file_path));
     }
     let device_info: nusb::DeviceInfo = device.try_into()?;
-    let mut fb = fastboot_protocol::nusb::NusbFastBoot::from_info(&device_info).unwrap();
-    println!("Fastboot version: {}", fb.get_var("version").await.unwrap());
-    let file = tokio::fs::File::open(file_path).await.unwrap();
-    let file_size = file.metadata().await.unwrap().len() as u32;
-    flash_raw(&mut fb, "ram", file, file_size).await.unwrap();
+    let mut fb = fastboot_protocol::nusb::NusbFastBoot::from_info(&device_info)
+        .map_err(|e| e.to_string())?;
+    println!(
+        "Fastboot version: {}",
+        fb.get_var("version").await.map_err(|e| e.to_string())?
+    );
+    let file = tokio::fs::File::open(file_path).await.map_err(|e| e.to_string())?;
+    let file_size = file.metadata().await.map_err(|e| e.to_string())?.len() as u32;
+    flash_raw(&mut fb, "ram", file, file_size).await.map_err(|e| e.to_string())?;
     Ok(format!(
         "Flashed u-boot to RAM on device: {}",
         device_info.product_string().unwrap_or_else(|| "Unknown")
-    ).to_string())
+    )
+    .to_string())
 }
 
 #[command]
-fn reboot_to_stage2() -> Result<String, String> {
+async fn reboot_device(device: USBDevice) -> Result<String, String> {
     // Stub implementation
-    Ok("Rebooted to stage 2.".to_string())
+    let device_info: nusb::DeviceInfo = device.try_into()?;
+    let mut fb = fastboot_protocol::nusb::NusbFastBoot::from_info(&device_info).unwrap();
+    println!("Fastboot version: {}", fb.get_var("version").await.unwrap());
+    fb.reboot().await.map_err(|e| e.to_string())?;
+    Ok("Rebooted device.".to_string())
 }
-
-#[command]
-fn connect_to_stage2() -> Result<String, String> {
-    // Stub implementation
-    Ok("Connected to stage 2 USB device.".to_string())
-}
-
-
 
 #[command]
 fn flash_files_to_device(
@@ -74,12 +75,6 @@ fn flash_files_to_device(
         "Flashed uboot: {}, boot: {}, root: {} successfully.",
         uboot_path, boot_path, root_path
     ))
-}
-
-#[command]
-fn reboot_device() -> Result<String, String> {
-    // Stub implementation
-    Ok("Device rebooted successfully.".to_string())
 }
 
 #[command]
@@ -188,8 +183,6 @@ pub fn run() {
             greet,
             connect_to_device,
             flash_uboot_to_ram,
-            reboot_to_stage2,
-            connect_to_stage2,
             flash_files_to_device,
             reboot_device,
             select_file,

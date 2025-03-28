@@ -217,7 +217,7 @@ async function rebootToStage2() {
     isProcessing.value = true;
     status.value = "Rebooting to stage 2...";
     try {
-        const result = await invoke<string>("reboot_to_stage2");
+        const result = await invoke<string>("reboot_device", { device: selectedDevice.value });
         status.value = result;
     } catch (error: any) {
         status.value = `Error: ${error.message}`;
@@ -231,7 +231,7 @@ async function connectToStage2() {
     isProcessing.value = true;
     status.value = `Connecting to ${selectedDevice.value.product_string}...`;
     try {
-        const result = await invoke<string>("connect_to_stage2");
+        const result = await invoke<string>("connect_to_device", { device: selectedDevice.value });
         status.value = result;
     } catch (error: any) {
         status.value = `Error: ${error.message}`;
