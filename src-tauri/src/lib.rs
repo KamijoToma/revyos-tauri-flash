@@ -6,7 +6,6 @@ use nusb::MaybeFuture;
 use tauri::command;
 use tauri::ipc::Channel;
 use tauri_plugin_dialog::DialogExt;
-use tauri_plugin_dialog::FilePath;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncSeek;
 use tokio::io::AsyncRead;
@@ -24,39 +23,13 @@ enum UploadProgressEvent{
 }
 
 #[command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
-#[command]
 fn connect_to_device(device: USBDevice) -> Result<String, String> {
     let device_info: nusb::DeviceInfo = device.try_into()?;
     // Perform connection logic here (stubbed for now)
     Ok(format!(
         "Successfully connected to device: {}",
-        device_info.product_string().unwrap_or_else(|| "Unknown")
+        device_info.product_string().unwrap_or("Unknown")
     ))
-}
-
-#[command]
-async fn flash_uboot_to_ram(file_path: String, device: USBDevice, on_event: Channel<UploadProgressEvent>) -> Result<String, String> {
-    // Use the full file path directly
-    if !std::path::Path::new(&file_path).exists() {
-        return Err(format!("File not found: {}", file_path));
-    }
-    let device_info: nusb::DeviceInfo = device.try_into()?;
-    let mut fb = fastboot_protocol::nusb::NusbFastBoot::from_info(&device_info)
-        .map_err(|e| e.to_string())?;
-    println!(
-        "Fastboot version: {}",
-        fb.get_var("version").await.map_err(|e| e.to_string())?
-    );
-    flash(&mut fb, "ram", std::path::Path::new(&file_path), move |c, t| on_event.send(UploadProgressEvent::Progress { current: c, total: t }).unwrap()).await.map_err(|e| e.to_string())?;
-    Ok(format!(
-        "Flashed u-boot to RAM on device: {}",
-        device_info.product_string().unwrap_or_else(|| "Unknown")
-    )
-    .to_string())
 }
 
 #[command]
@@ -67,42 +40,6 @@ async fn reboot_device(device: USBDevice) -> Result<String, String> {
     println!("Fastboot version: {}", fb.get_var("version").await.unwrap());
     fb.reboot().await.map_err(|e| e.to_string())?;
     Ok("Rebooted device.".to_string())
-}
-
-#[command]
-async fn flash_files_to_device(
-    uboot_path: String,
-    boot_path: String,
-    root_path: String,
-    device: USBDevice,
-) -> Result<String, String> {
-    // Validate all file paths
-    if !std::path::Path::new(&uboot_path).exists() {
-        return Err(format!("File not found: {}", uboot_path));
-    }
-    if !std::path::Path::new(&boot_path).exists() {
-        return Err(format!("File not found: {}", boot_path));
-    }
-    if !std::path::Path::new(&root_path).exists() {
-        return Err(format!("File not found: {}", root_path));
-    }
-    let flash_map = [
-        ("uboot", uboot_path),
-        ("boot", boot_path),
-        ("root", root_path),
-    ];
-    let device_info: nusb::DeviceInfo = device.try_into()?;
-    let mut fb = fastboot_protocol::nusb::NusbFastBoot::from_info(&device_info)
-        .map_err(|e| e.to_string())?;
-    println!(
-        "Fastboot version: {}",
-        fb.get_var("version").await.map_err(|e| e.to_string())?
-    );
-    for (target, path) in flash_map.iter() {
-        println!("Flashing {} to device", target);
-        flash(&mut fb, target, std::path::Path::new(path), |_, _| {}).await.map_err(|e| e.to_string())?;
-    }
-    Ok("Flashed files successfully.".to_string())
 }
 
 #[command]
@@ -127,7 +64,7 @@ async fn flash_to_partition(
     Ok(format!(
         "Flashed file to partition {} on device: {}",
         partition,
-        device_info.product_string().unwrap_or_else(|| "Unknown")
+        device_info.product_string().unwrap_or("Unknown")
     )
     .to_string())
 }
@@ -158,7 +95,7 @@ impl From<nusb::DeviceInfo> for USBDevice {
         USBDevice {
             vendor_id: device.vendor_id(),
             product_id: device.product_id(),
-            product_string: device.product_string().unwrap_or_else(|| "Unknown").to_string(),
+            product_string: device.product_string().unwrap_or("Unknown").to_string(),
             device_address: device.device_address(),
         }
     }
@@ -233,7 +170,6 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
-            greet,
             connect_to_device,
             reboot_device,
             flash_to_partition,
