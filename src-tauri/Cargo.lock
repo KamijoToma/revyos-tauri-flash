@@ -955,8 +955,7 @@ dependencies = [
 [[package]]
 name = "fastboot-protocol"
 version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae04a1a8bc54113cdad6e479e1a5f5d7cfaf46db52c749ad81a9ddb9695ffc84"
+source = "git+https://github.com/KamijoToma/fastboot-rs?rev=1f35b424109d40570ba30ba5976e129f09b60701#1f35b424109d40570ba30ba5976e129f09b60701"
 dependencies = [
  "bytes",
  "futures",
@@ -2227,21 +2226,21 @@ dependencies = [
 
 [[package]]
 name = "nusb"
-version = "0.1.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99a726776e551f3ee9b467fe47202f26e64b9bbf715df5443b0904df6f2dcc41"
+version = "0.2.0-beta"
+source = "git+https://github.com/kevinmehall/nusb?rev=a243514#a243514f583495e774aeb1d936d083487b36f211"
 dependencies = [
  "atomic-waker",
+ "blocking",
  "core-foundation 0.9.4",
  "core-foundation-sys",
  "futures-core",
  "io-kit-sys",
- "libc",
+ "linux-raw-sys 0.9.3",
  "log",
  "once_cell",
- "rustix 0.38.44",
+ "rustix 1.0.3",
  "slab",
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

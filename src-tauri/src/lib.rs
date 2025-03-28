@@ -1,6 +1,11 @@
+use nusb::MaybeFuture;
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use tauri::command;
 use tauri_plugin_dialog::DialogExt;
+use tokio::io::AsyncReadExt;
+use tokio::io::AsyncSeek;
+use tokio::io::AsyncRead;
+use anyhow::Context;
 
 #[command]
 fn greet(name: &str) -> String {
@@ -8,9 +13,13 @@ fn greet(name: &str) -> String {
 }
 
 #[command]
-fn connect_to_device() -> Result<String, String> {
-    // Stub implementation
-    Ok("Connected to stage 1 USB device.".to_string())
+fn connect_to_device(device: USBDevice) -> Result<String, String> {
+    let device_info: nusb::DeviceInfo = device.try_into()?;
+    // Perform connection logic here (stubbed for now)
+    Ok(format!(
+        "Successfully connected to device: {}",
+        device_info.product_string().unwrap_or_else(|| "Unknown")
+    ))
 }
 
 #[command]
@@ -79,9 +88,9 @@ fn select_file(window: tauri::Window) -> Result<String, String> {
     Ok(path.to_string_lossy().to_string())
 }
 
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct USBDevice {
     vendor_id: u16,
     product_id: u16,
@@ -100,10 +109,26 @@ impl From<nusb::DeviceInfo> for USBDevice {
     }
 }
 
+// try to convert USBDevice to nusb::DeviceInfo by searching for the device
+impl TryFrom<USBDevice> for nusb::DeviceInfo {
+    type Error = String;
+
+    fn try_from(device: USBDevice) -> Result<Self, Self::Error> {
+        let mut devices = nusb::list_devices().wait().map_err(|e| e.to_string())?;
+        devices
+            .find(|dev| {
+                dev.vendor_id() == device.vendor_id
+                    && dev.product_id() == device.product_id
+                    && dev.device_address() == device.device_address
+            })
+            .ok_or_else(|| "Device not found".to_string())
+    }
+}
+
 #[command]
 fn list_usb_devices() -> Result<Vec<USBDevice>, String> {
     let mut devices: Vec<USBDevice> = Vec::new();
-    for dev in nusb::list_devices().unwrap() {
+    for dev in nusb::list_devices().wait().unwrap() {
         devices.push(dev.into());
     }
     devices.sort_by(|a, b| a.product_string.cmp(&b.product_string));
@@ -128,9 +153,24 @@ mod tests {
 
     #[test]
     fn test_list_usb_nusb() {
-        for dev in ::nusb::list_devices().unwrap() {
+        for dev in ::nusb::list_devices().wait().unwrap() {
             println!("Device: {:?}", dev);
         }
+    }
+
+    #[tokio::test]
+    async fn test_fastboot_flash() {
+        let devices = nusb::list_devices().wait().unwrap();
+        // Get a usb download gadget
+        let info = devices.filter(|i| i.vendor_id() == 0x2345).next().unwrap();
+        println!("Device: {:#?}", info);
+        let mut fb = fastboot_protocol::nusb::NusbFastBoot::from_info(&info).unwrap();
+        println!("Fastboot version: {}", fb.get_var("version").await.unwrap());
+        // Flash a file
+        let file_path = "C:\\Users\\SkyRain\\Downloads\\u-boot-with-spl-lpi4a-16g-main (1).bin";
+        let file = tokio::fs::File::open(file_path).await.unwrap();
+        let file_size = tokio::fs::metadata(file_path).await.unwrap().len() as u32;
+        flash_raw(&mut fb, "ram", file, file_size).await.unwrap();
     }
 }
 
@@ -152,4 +192,33 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+async fn flash_raw<R>(
+    fb: &mut fastboot_protocol::nusb::NusbFastBoot,
+    target: &str,
+    mut file: R,
+    file_size: u32,
+) -> anyhow::Result<()>
+where
+    R: AsyncRead + AsyncSeek + Unpin,
+{
+    println!("Uploading raw image directly");
+    let mut sender = fb.download(file_size).await?;
+    loop {
+        let left = sender.left();
+        if left == 0 {
+            break;
+        }
+        let buf = sender.get_mut_data(left as usize).await?;
+        file.read_exact(buf)
+            .await
+            .context("Failed to read from file")?;
+    }
+
+    sender.finish().await?;
+    println!("Flashing data");
+    fb.flash(target).await?;
+
+    Ok(())
 }

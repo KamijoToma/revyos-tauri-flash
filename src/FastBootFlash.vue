@@ -15,7 +15,7 @@
                 <n-scrollbar style="max-height: 40vh">
                     <n-list v-if="usbDevices.length" hoverable clickable bordered>
                         <n-list-item v-for="(device, index) in usbDevices" :key="index"
-                            :class="{ selected: selectedDevice === device.product_string }" @click="selectUsbDevice(device.product_string)">
+                            :class="{ selected: selectedDevice?.product_string === device.product_string }" @click="selectUsbDevice(device)">
                             <n-thing :title="device.product_string" content-style="margin-top: 10px;">
                                 <template #description>
                                     <n-space size="small" style="margin-top: 4px">
@@ -68,7 +68,7 @@
                 <n-scrollbar style="max-height: 40vh">
                     <n-list v-if="usbDevices.length" hoverable clickable bordered>
                         <n-list-item v-for="(device, index) in usbDevices" :key="index"
-                            :class="{ selected: selectedDevice === device.product_string }" @click="selectUsbDevice(device.product_string)">
+                            :class="{ selected: selectedDevice?.product_string === device.product_string }" @click="selectUsbDevice(device)">
                             <n-thing :title="device.product_string" content-style="margin-top: 10px;">
                                 <template #description>
                                     <n-space size="small" style="margin-top: 4px">
@@ -156,7 +156,7 @@ const files = ref<{ [key: string]: UploadFileInfo[] }>({
 });
 
 const usbDevices = ref<USBDevice[]>([]);
-const selectedDevice = ref<string | null>(null);
+const selectedDevice = ref<USBDevice | null>(null); // Store the entire USBDevice object
 
 async function refreshUsbDevices() {
     isProcessing.value = true;
@@ -172,16 +172,16 @@ async function refreshUsbDevices() {
     }
 }
 
-function selectUsbDevice(device: string) {
-    selectedDevice.value = device;
+function selectUsbDevice(device: USBDevice) {
+    selectedDevice.value = device; // Store the selected device object
 }
 
 async function connectToDevice() {
     if (!selectedDevice.value) return;
     isProcessing.value = true;
-    status.value = `Connecting to ${selectedDevice.value}...`;
+    status.value = `Connecting to ${selectedDevice.value.product_string}...`;
     try {
-        const result = await invoke<string>("connect_to_device");
+        const result = await invoke<string>("connect_to_device", { device: selectedDevice.value });
         status.value = result;
     } catch (error: any) {
         status.value = `Error: ${error.message}`;
@@ -222,7 +222,7 @@ async function rebootToStage2() {
 async function connectToStage2() {
     if (!selectedDevice.value) return;
     isProcessing.value = true;
-    status.value = `Connecting to ${selectedDevice.value}...`;
+    status.value = `Connecting to ${selectedDevice.value.product_string}...`;
     try {
         const result = await invoke<string>("connect_to_stage2");
         status.value = result;
