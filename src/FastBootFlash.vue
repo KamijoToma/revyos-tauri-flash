@@ -84,6 +84,9 @@
                                         <n-tag :bordered="false" type="info" size="small">
                                             Address: {{ device.device_address }}
                                         </n-tag>
+                                        <n-tag v-if="('0x' + Number(device.vendor_id).toString(16)) === '0x1234'" :bordered="false" type="warning" size="small">
+                                            C920 stage 2 gadget
+                                        </n-tag>
                                     </n-space>
                                 </template>
                                 Click to select this device.
