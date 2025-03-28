@@ -23,16 +23,21 @@ fn connect_to_device(device: USBDevice) -> Result<String, String> {
 }
 
 #[command]
-fn flash_uboot_to_ram(file_path: String) -> Result<String, String> {
+async fn flash_uboot_to_ram(file_path: String, device: USBDevice) -> Result<String, String> {
     // Use the full file path directly
-    if std::path::Path::new(&file_path).exists() {
-        Ok(format!(
-            "Flashed uboot.bin from {} to RAM successfully.",
-            file_path
-        ))
-    } else {
-        Err(format!("File not found: {}", file_path))
+    if !std::path::Path::new(&file_path).exists() {
+        return Err(format!("File not found: {}", file_path))
     }
+    let device_info: nusb::DeviceInfo = device.try_into()?;
+    let mut fb = fastboot_protocol::nusb::NusbFastBoot::from_info(&device_info).unwrap();
+    println!("Fastboot version: {}", fb.get_var("version").await.unwrap());
+    let file = tokio::fs::File::open(file_path).await.unwrap();
+    let file_size = file.metadata().await.unwrap().len() as u32;
+    flash_raw(&mut fb, "ram", file, file_size).await.unwrap();
+    Ok(format!(
+        "Flashed u-boot to RAM on device: {}",
+        device_info.product_string().unwrap_or_else(|| "Unknown")
+    ).to_string())
 }
 
 #[command]

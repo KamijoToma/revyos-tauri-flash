@@ -200,6 +200,7 @@ async function flashUbootToRam() {
     try {
         const result = await invoke<string>("flash_uboot_to_ram", {
             filePath: files.value.ubootBin[0].fullPath, // Use the full file path
+            device: selectedDevice.value
         });
         status.value = result;
     } catch (error: any) {
