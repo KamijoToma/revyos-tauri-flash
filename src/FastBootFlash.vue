@@ -141,7 +141,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { invoke, Channel } from "@tauri-apps/api/core";
 import { NCard, NSteps, NStep, NButton, NUpload, NUploadFileList, NAlert, NScrollbar, NList, NListItem, NThing, NSpace, NTag, type UploadFileInfo } from "naive-ui";
 
@@ -348,6 +348,15 @@ async function selectFile(key: string) {
         status.value = `Error: ${error.message}`;
     }
 }
+
+// Automically refresh USB devices when meeting certain steps
+watch(currentStep, async (newStep) => {
+    if (newStep === 1 || newStep === 4) {
+        await refreshUsbDevices();
+    }
+});
+// Also refresh USB devices when the component is mounted
+refreshUsbDevices();
 
 function nextStep() {
     if (currentStep.value < 6) currentStep.value++;
