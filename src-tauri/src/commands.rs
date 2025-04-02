@@ -38,7 +38,7 @@ pub async fn flash_to_partition(
     on_event: Channel<UploadProgressEvent>,
 ) -> Result<String, String> {
     // Validate file path
-    if (!std::path::Path::new(&file_path).exists()) {
+    if !std::path::Path::new(&file_path).exists() {
         return Err(format!("File not found: {}", file_path));
     }
     let device_info: nusb::DeviceInfo = device.try_into()?;

@@ -1,4 +1,3 @@
-use reqwest;
 use scraper::{Html, Selector};
 use std::collections::HashMap;
 
@@ -53,8 +52,7 @@ pub async fn fetch_and_parse(
     let mut links = fetch_and_parse_raw(url).await?;
     links.retain(|link| {
         !link
-            .get("name")
-            .map_or(false, |name| name.contains("Parent directory") || name.contains("../"))
+            .get("name").is_some_and(|name| name.contains("Parent directory") || name.contains("../"))
     });
     Ok(links)
 }
@@ -124,7 +122,7 @@ pub async fn fetch_and_parse_lpi4a_image_all(url: Option<String>) -> Result<Vec<
 
 #[cfg(test)]
 mod tests {
-    use crate::image::{ImageBinary, ImageBinaryType, ImageVersion};
+    use crate::image::{ImageBinary, ImageBinaryType};
 
     use super::*;
 
@@ -140,8 +138,7 @@ mod tests {
                 }
                 // Assert it contains a link whose name contains "Parent directory"
                 let parent_dir_link = links.iter().find(|link| {
-                    link.get("name")
-                        .map_or(false, |name| name.contains("Parent directory") || name.contains("../"))
+                    link.get("name").is_some_and(|name| name.contains("Parent directory") || name.contains("../"))
                 });
                 assert!(
                     parent_dir_link.is_some(),
@@ -164,8 +161,7 @@ mod tests {
                 }
                 // Assert it does not contain a link whose name contains "Parent directory"
                 let parent_dir_link = links.iter().find(|link| {
-                    link.get("name")
-                        .map_or(false, |name| name.contains("Parent directory"))
+                    link.get("name").is_some_and(|name| name.contains("Parent directory"))
                 });
                 assert!(
                     parent_dir_link.is_none(),
@@ -185,8 +181,7 @@ mod tests {
                 }
                 // Assert it does not contain a link whose name contains "Parent directory"
                 let parent_dir_link = links.iter().find(|link| {
-                    link.get("name")
-                        .map_or(false, |name| name.contains("Parent directory"))
+                    link.get("name").is_some_and(|name| name.contains("Parent directory"))
                 });
                 assert!(
                     parent_dir_link.is_none(),

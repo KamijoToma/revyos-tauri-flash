@@ -26,7 +26,7 @@ pub struct ImageBinary {
 pub enum ImageBinaryHashError {
     HashTypeNotFound,
     HashValueNotFound,
-    HashMismatch,
+    Mismatch,
 }
 
 impl ImageBinary {
