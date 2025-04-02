@@ -32,7 +32,7 @@
       <!-- Step 2: Flash uboot -->
       <n-card v-else-if="currentStep === 2" title="Step 2: Flash uboot.bin to RAM" class="inner-card">
         <file-uploader
-          file-type="bin"
+          :file-type="['bin']"
           button-text="Select uboot.bin file"
           v-model:files="files.ubootBin"
           @error="handleError"
@@ -68,19 +68,19 @@
       <n-card v-else-if="currentStep === 5" title="Step 5: Flash Files to Device" class="inner-card">
         <div class="grid grid-cols-1 gap-4 mb-6">
           <file-uploader
-            file-type="bin"
+            :file-type="['bin']"
             button-text="Select uboot.bin"
             v-model:files="files.ubootBin"
             @error="handleError"
           />
           <file-uploader
-            file-type="ext4"
+            :file-type="['ext4']"
             button-text="Select boot.ext4"
             v-model:files="files.bootExt4"
             @error="handleError"
           />
           <file-uploader
-            file-type="ext4"
+            :file-type="['ext4']"
             button-text="Select root.ext4"
             v-model:files="files.rootExt4"
             @error="handleError"

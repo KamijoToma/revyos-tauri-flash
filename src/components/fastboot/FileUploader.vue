@@ -11,12 +11,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, defineProps, defineEmits, watch } from 'vue';
-import { invoke } from "@tauri-apps/api/core";
+import { computed, defineProps, defineEmits} from 'vue';
+import { open } from "@tauri-apps/plugin-dialog";
 import { NUpload, NButton, NUploadFileList, type UploadFileInfo } from 'naive-ui';
 
 const props = defineProps<{
-  fileType: string;
+  fileType: string[];
   buttonText: string;
   files?: UploadFileInfo[];
 }>();
@@ -35,8 +35,19 @@ const fileList = computed({
 
 async function selectFile() {
   try {
-    const filePath = await invoke<string>("select_file");
-    if (filePath) {
+    // 根据文件类型设置过滤器
+    const fileFilters = [{
+      name: props.fileType.join(', '),
+      extensions: props.fileType
+    }];
+    
+    // 使用Tauri的文件对话框API
+    const filePath = await open({
+      multiple: false,
+      filters: fileFilters
+    });
+    
+    if (filePath && typeof filePath === 'string') {
       const newFile = {
         id: Date.now().toString(),
         name: filePath.split(/[/\\]/).pop() || "",

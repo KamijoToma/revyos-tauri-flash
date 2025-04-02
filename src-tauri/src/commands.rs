@@ -1,6 +1,5 @@
 use serde::Serialize;
 use tauri::{command, ipc::Channel};
-use tauri_plugin_dialog::DialogExt;
 use crate::usb::{USBDevice, list_devices};
 use crate::flash::flash;
 
@@ -56,17 +55,6 @@ pub async fn flash_to_partition(
         device_info.product_string().unwrap_or("Unknown")
     )
     .to_string())
-}
-
-#[command]
-pub fn select_file(window: tauri::Window) -> Result<String, String> {
-    let file_path = window
-        .dialog()
-        .file()
-        .blocking_pick_file()
-        .ok_or_else(|| "No file selected".to_string())?;
-    let path = file_path.into_path().map_err(|e| e.to_string())?;
-    Ok(path.to_string_lossy().to_string())
 }
 
 #[command]

@@ -13,7 +13,6 @@ pub fn run() {
             commands::connect_to_device,
             commands::reboot_device,
             commands::flash_to_partition,
-            commands::select_file,
             commands::list_usb_devices,
             commands::fetch_lpi4a_image_versions
         ])
