@@ -39,7 +39,7 @@ pub async fn flash_to_partition(
     on_event: Channel<UploadProgressEvent>,
 ) -> Result<String, String> {
     // Validate file path
-    if !std::path::Path::new(&file_path).exists() {
+    if (!std::path::Path::new(&file_path).exists()) {
         return Err(format!("File not found: {}", file_path));
     }
     let device_info: nusb::DeviceInfo = device.try_into()?;
@@ -72,4 +72,12 @@ pub fn select_file(window: tauri::Window) -> Result<String, String> {
 #[command]
 pub fn list_usb_devices() -> Result<Vec<USBDevice>, String> {
     list_devices()
+}
+
+// 增加一个新的命令，用于获取LPi4A镜像版本列表
+#[tauri::command]
+pub async fn fetch_lpi4a_image_versions() -> Result<Vec<crate::image::ImageVersion>, String> {
+    crate::html_parser::fetch_and_parse_lpi4a_image_all(None)
+        .await
+        .map_err(|e| e.to_string())
 }

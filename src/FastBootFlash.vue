@@ -86,6 +86,9 @@
             @error="handleError"
           />
         </div>
+        <ImageSelector
+          :image-variant="selectedImageVariant"
+          @select-variant="handleImageVariantSelected"/>
         <n-button @click="flashFilesToDevice"
                  :disabled="!files.ubootBin.length || !files.bootExt4.length || !files.rootExt4.length || isProcessing"
                  :loading="isProcessing" type="primary" class="w-full">
@@ -125,6 +128,8 @@ import StepNavigation from './components/fastboot/StepNavigation.vue';
 import StatusDisplay from './components/fastboot/StatusDisplay.vue';
 import FileUploader from './components/fastboot/FileUploader.vue';
 import Step1Connect from './components/fastboot/steps/Step1Connect.vue';
+import ImageSelector from './components/ImageSelector.vue';
+import { type ImageVariant } from './components/ImageSelector.vue';
 
 interface USBDevice {
   vendor_id: string;
@@ -145,6 +150,13 @@ const files = ref<{ [key: string]: UploadFileInfo[] }>({
 
 const usbDevices = ref<USBDevice[]>([]);
 const selectedDevice = ref<USBDevice | null>(null);
+const selectedImageVariant = ref<ImageVariant | null>(null);
+
+const handleImageVariantSelected = (variant: ImageVariant) => {
+  selectedImageVariant.value = variant;
+  // 这里可以添加进一步处理选择的镜像的逻辑
+  // 例如显示镜像详细信息、准备刷入等
+};
 
 type UploadProgressEvent = { 
   event: "progress",

@@ -99,7 +99,7 @@ async fn fetch_and_parse_lpi4a_image(url: String) -> Result<ImageVersion, Box<dy
     })
 }
 
-async fn fetch_and_parse_lpi4a_image_all(url: Option<String>) -> Result<Vec<ImageVersion>, Box<dyn std::error::Error>> {
+pub async fn fetch_and_parse_lpi4a_image_all(url: Option<String>) -> Result<Vec<ImageVersion>, Box<dyn std::error::Error>> {
     let url = url.unwrap_or_else(|| "https://mirror.iscas.ac.cn/revyos/extra/images/lpi4a/".to_string());
     let result = fetch_and_parse(url.clone()).await?;
     let mut image_versions = Vec::new();

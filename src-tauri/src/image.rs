@@ -1,8 +1,9 @@
 use std::collections::HashMap;
+use serde::{Serialize, Deserialize};
 
 /// ImageBinaryType represents the type of image binary.
 /// It determines how the binary should be flash into the device.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ImageBinaryType {
     UBoot,
     BOOT,
@@ -12,7 +13,7 @@ pub enum ImageBinaryType {
 }
 
 /// A binary file fetched from web mirror.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageBinary {
     pub name: String, // Name of the binary, e.g., "u-boot.bin", "boot.img", etc.
     pub web_path: Option<String>,
@@ -62,13 +63,13 @@ impl ImageBinary {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageVariant {
     pub name: String,
     pub image_binarys: Vec<ImageBinary>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageVersion {
     pub version: String,
     pub image_variants: Vec<ImageVariant>,
