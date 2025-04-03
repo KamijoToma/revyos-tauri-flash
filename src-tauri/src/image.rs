@@ -14,10 +14,10 @@ pub enum ProgressType {
 /// ImageBinaryType represents the type of image binary.
 pub enum ImageBinaryType {
     UBoot,
-    BOOT,
-    ROOT,
-    SDCARD,
-    OTHER(String) // String represents the partition this binary will be flashed to.
+    Boot,
+    Root,
+    Sdcard,
+    Other(String) // String represents the partition this binary will be flashed to.
 }
 
 /// A binary file fetched from web mirror.
@@ -31,6 +31,7 @@ pub struct ImageBinary {
     pub hash_value: Option<String>, // Hash value for the binary, e.g., SHA256, MD5, etc.
 }
 
+#[allow(dead_code)]
 pub enum ImageBinaryHashError {
     HashTypeNotFound,// Hash type for the binary, e.g., SHA256, MD5, etc.
     HashValueNotFound,// Hash value for the binary, e.g., SHA256, MD5, etc.
@@ -60,13 +61,13 @@ impl ImageBinary {
         let binary_type = if web_path.contains("u-boot") {
             ImageBinaryType::UBoot
         } else if web_path.starts_with("boot") {
-            ImageBinaryType::BOOT
+            ImageBinaryType::Boot
         } else if web_path.contains("root") {
-            ImageBinaryType::ROOT
+            ImageBinaryType::Root
         }else if web_path.contains("sdcard"){
-            ImageBinaryType::SDCARD
+            ImageBinaryType::Sdcard
         } else {
-            ImageBinaryType::OTHER(web_path.clone())
+            ImageBinaryType::Other(web_path.clone())
         };
         Self::new(name, Some(format!("{}/{}", base_url, web_path)), None, binary_type, None, None)
     }
@@ -257,7 +258,7 @@ mod tests {
         let mut total_size = 0;
         
         // Execute the download with a simple callback that tracks progress
-        let result = variant.download_binaries(|name, progress, total, progress_type| {
+        let result = variant.download_binaries(|name, progress, total, _progress_type| {
             assert_eq!(name, "u-boot.bin");
             received_progress = progress;
             total_size = total;
@@ -360,7 +361,7 @@ mod tests {
         let mut total_size = 0;
         
         // Execute the download with a simple callback that tracks progress
-        let result = variant.download_binaries(|name, progress, total, progress_type| {
+        let result = variant.download_binaries(|name, progress, total, _progress_type| {
             assert_eq!(name, "u-boot.bin");
             received_progress = progress;
             total_size = total;

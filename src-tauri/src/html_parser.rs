@@ -70,12 +70,12 @@ async fn fetch_and_parse_lpi4a_image(url: String) -> Result<ImageVersion, Box<dy
     // The rest of the binaries are optional and can be ignored.
     let rootfs_binary = image_bin
         .iter()
-        .find(|link| link.binary_type == ImageBinaryType::ROOT)
+        .find(|link| link.binary_type == ImageBinaryType::Root)
         .cloned()
         .ok_or("Missing ROOT binary")?;
     let boot_binary = image_bin
         .iter()
-        .find(|link| link.binary_type == ImageBinaryType::BOOT)
+        .find(|link| link.binary_type == ImageBinaryType::Boot)
         .cloned()
         .ok_or("Missing BOOT binary")?;
     let image_variants: Vec<_> = image_bin
@@ -242,8 +242,8 @@ mod tests {
         // Assemble the image binarys into a ImageVariant
         // Pattern: Each ImageVariant must and should only contain a ROOT, a BOOT, and a UBOOT binary.
         // The rest of the binarys are optional and can be ignored.
-        let rootfs_binary = image_bin.iter().find(|link| link.binary_type == ImageBinaryType::ROOT).cloned().unwrap();
-        let boot_binary = image_bin.iter().find(|link| link.binary_type == ImageBinaryType::BOOT).cloned().unwrap();
+        let rootfs_binary = image_bin.iter().find(|link| link.binary_type == ImageBinaryType::Root).cloned().unwrap();
+        let boot_binary = image_bin.iter().find(|link| link.binary_type == ImageBinaryType::Boot).cloned().unwrap();
         let image_variants: Vec<_> = image_bin.iter().filter(|link| link.binary_type == ImageBinaryType::UBoot)
         .map(|link| {
             ImageVariant {
