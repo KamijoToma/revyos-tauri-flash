@@ -1,4 +1,5 @@
 use serde::Serialize;
+use tauri::Emitter;
 use tauri::{command, ipc::Channel};
 use crate::usb::{USBDevice, list_devices};
 use crate::flash::flash;
@@ -8,6 +9,14 @@ use crate::flash::flash;
 pub enum UploadProgressEvent {
     #[serde(rename_all = "camelCase")]
     Progress { current: u64, total: u64 },
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadProgressPayload {
+    filename: String,
+    current: u64,
+    total: u64,
 }
 
 #[command]
@@ -68,4 +77,28 @@ pub async fn fetch_lpi4a_image_versions() -> Result<Vec<crate::image::ImageVersi
     crate::html_parser::fetch_and_parse_lpi4a_image_all(None)
         .await
         .map_err(|e| e.to_string())
+}
+
+#[command]
+pub async fn download_image_variant(
+    variant: crate::image::ImageVariant,
+    window: tauri::Window
+) -> Result<String, String> {
+    // 创建进度回调函数
+    let progress_callback = move |filename: &str, current: u64, total: u64| {
+        let _ = window.emit("image-download-progress", DownloadProgressPayload {
+            filename: filename.to_string(),
+            current,
+            total,
+        });
+    };
+
+    // 克隆变体以便可以修改它
+    let mut variant_clone = variant.clone();
+    
+    // 执行下载
+    match variant_clone.download_binaries(progress_callback).await {
+        Ok(_) => Ok(format!("Successfully downloaded all binaries for variant {}", variant.name)),
+        Err(e) => Err(format!("Failed to download binaries: {}", e)),
+    }
 }

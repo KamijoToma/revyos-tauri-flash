@@ -1,7 +1,7 @@
 <template>
   <n-card title="Step 2: Flash uboot.bin to RAM" class="inner-card">
     <file-uploader
-      file-type="bin"
+      :file-type="['bin']"
       button-text="Select uboot.bin file"
       v-model:files="fileList"
       @error="$emit('error', $event)"

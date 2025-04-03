@@ -14,7 +14,8 @@ pub fn run() {
             commands::reboot_device,
             commands::flash_to_partition,
             commands::list_usb_devices,
-            commands::fetch_lpi4a_image_versions
+            commands::fetch_lpi4a_image_versions,
+            commands::download_image_variant
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

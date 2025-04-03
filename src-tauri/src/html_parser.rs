@@ -81,9 +81,11 @@ async fn fetch_and_parse_lpi4a_image(url: String) -> Result<ImageVersion, Box<dy
     let image_variants: Vec<_> = image_bin
         .iter()
         .filter(|link| link.binary_type == ImageBinaryType::UBoot)
-        .map(|link| ImageVariant {
-            name: link.name.clone(),
-            image_binarys: vec![rootfs_binary.clone(), boot_binary.clone(), link.clone()],
+        .map(|link| {
+            ImageVariant::new(
+                link.name.clone(),
+                vec![rootfs_binary.clone(), boot_binary.clone(), link.clone()],
+            )
         })
         .collect();
     let version = if url.ends_with('/') {
