@@ -30,18 +30,16 @@
       />
       
       <!-- Step 2: Flash uboot -->
-      <n-card v-else-if="currentStep === 2" title="Step 2: Flash uboot.bin to RAM" class="inner-card">
-        <file-uploader
-          :file-type="['bin']"
-          button-text="Select uboot.bin file"
-          v-model:files="files.ubootBin"
-          @error="handleError"
-        />
-        <n-button @click="flashUbootToRam" :disabled="!files.ubootBin.length || isProcessing"
-                 :loading="isProcessing" type="primary" class="w-full mt-4">
-          {{ isProcessing ? "Flashing..." : "Flash to RAM" }}
-        </n-button>
-      </n-card>
+      <Step2FlashUboot
+        v-else-if="currentStep === 2"
+        v-model:files="files.ubootBin"
+        :loading="isProcessing"
+        :selected-image-variant="selectedImageVariant"
+        :image-flash-progress="step2FlashProgress"
+        @update:selectedImageVariant="selectedImageVariant = $event"
+        @flash="flashUbootToRam"
+        @error="handleError"
+      />
       
       <!-- Step 3: Restart to Stage 2 -->
       <n-card v-else-if="currentStep === 3" title="Step 3: Restart to Stage 2" class="inner-card">
@@ -65,36 +63,16 @@
       />
       
       <!-- Step 5: Flash Files -->
-      <n-card v-else-if="currentStep === 5" title="Step 5: Flash Files to Device" class="inner-card">
-        <div class="grid grid-cols-1 gap-4 mb-6">
-          <file-uploader
-            :file-type="['bin']"
-            button-text="Select uboot.bin"
-            v-model:files="files.ubootBin"
-            @error="handleError"
-          />
-          <file-uploader
-            :file-type="['ext4']"
-            button-text="Select boot.ext4"
-            v-model:files="files.bootExt4"
-            @error="handleError"
-          />
-          <file-uploader
-            :file-type="['ext4']"
-            button-text="Select root.ext4"
-            v-model:files="files.rootExt4"
-            @error="handleError"
-          />
-        </div>
-        <ImageSelector
-          :image-variant="selectedImageVariant"
-          @select-variant="handleImageVariantSelected"/>
-        <n-button @click="flashFilesToDevice"
-                 :disabled="!files.ubootBin.length || !files.bootExt4.length || !files.rootExt4.length || isProcessing"
-                 :loading="isProcessing" type="primary" class="w-full">
-          {{ isProcessing ? "Flashing..." : "Flash Files" }}
-        </n-button>
-      </n-card>
+      <Step5FlashFiles
+        v-else-if="currentStep === 5"
+        v-model:fileCollection="files"
+        :loading="isProcessing"
+        :selected-image-variant="selectedImageVariant"
+        :image-flash-progress="step5FlashProgress"
+        @update:selectedImageVariant="selectedImageVariant = $event"
+        @flash="flashFilesToDevice"
+        @error="handleError"
+      />
       
       <!-- Step 6: Complete -->
       <n-card v-else-if="currentStep === 6" title="Step 6: Restart Device" class="inner-card">
@@ -126,9 +104,9 @@ import { NCard, NButton, type UploadFileInfo } from "naive-ui";
 // 导入自定义组件
 import StepNavigation from './components/fastboot/StepNavigation.vue';
 import StatusDisplay from './components/fastboot/StatusDisplay.vue';
-import FileUploader from './components/fastboot/FileUploader.vue';
 import Step1Connect from './components/fastboot/steps/Step1Connect.vue';
-import ImageSelector from './components/ImageSelector.vue';
+import Step2FlashUboot from './components/fastboot/steps/Step2FlashUboot.vue';
+import Step5FlashFiles from './components/fastboot/steps/Step5FlashFiles.vue';
 import { type ImageVariant } from './components/ImageSelector.vue';
 
 interface USBDevice {
@@ -142,21 +120,26 @@ interface USBDevice {
 const currentStep = ref(1);
 const isProcessing = ref(false);
 const status = ref("");
-const files = ref<{ [key: string]: UploadFileInfo[] }>({
+import type { FileCollection, ImageFlashProgressInfo } from './components/fastboot/steps/Step5FlashFiles.vue';
+
+const files = ref<FileCollection>({
   ubootBin: [],
   bootExt4: [],
   rootExt4: [],
 });
 
+// 添加进度跟踪状态
+const step2FlashProgress = ref(0); // 简单的百分比进度
+const step5FlashProgress = ref<ImageFlashProgressInfo>({
+  currentStep: '',
+  percentage: 0,
+  currentFile: 0,
+  totalFiles: 3 // uboot, boot, root 这三个文件
+});
+
 const usbDevices = ref<USBDevice[]>([]);
 const selectedDevice = ref<USBDevice | null>(null);
 const selectedImageVariant = ref<ImageVariant | null>(null);
-
-const handleImageVariantSelected = (variant: ImageVariant) => {
-  selectedImageVariant.value = variant;
-  // 这里可以添加进一步处理选择的镜像的逻辑
-  // 例如显示镜像详细信息、准备刷入等
-};
 
 type UploadProgressEvent = { 
   event: "progress",
@@ -206,32 +189,66 @@ async function connectToDevice() {
 
 // Flash操作方法
 async function flashUbootToRam() {
-  if (!files.value.ubootBin.length) return;
   isProcessing.value = true;
   status.value = "Flashing uboot.bin to RAM...";
   
   const onProgressEvent = new Channel<UploadProgressEvent>();
   onProgressEvent.onmessage = (event) => {
     const { current, total } = event.data;
-    files.value.ubootBin[0].percentage = current / total * 100;
+    if (files.value.ubootBin[0]) {
+      files.value.ubootBin[0].percentage = parseFloat(((current / total) * 100).toFixed(1));
+    }
+    // 更新在线镜像刷入进度，限制为一位小数
+    step2FlashProgress.value = parseFloat(((current / total) * 100).toFixed(1));
   };
   
   try {
-    files.value.ubootBin[0].status = "uploading";
+    let filePath = '';
+    
+    // 检查是使用本地文件还是在线镜像
+    if (files.value.ubootBin.length) {
+      // 本地文件模式
+      filePath = files.value.ubootBin[0].fullPath || '';
+      files.value.ubootBin[0].status = "uploading";
+    } else if (selectedImageVariant.value) {
+      // 在线镜像模式
+      const ubootBinary = selectedImageVariant.value.image_binarys.find(
+        binary => binary.binary_type === 'UBoot' && binary.local_path
+      );
+      
+      if (ubootBinary?.local_path) {
+        filePath = ubootBinary.local_path;
+        status.value = `Flashing ${ubootBinary.name} to RAM...`;
+      } else {
+        throw new Error("No uboot binary found in selected image variant");
+      }
+    } else {
+      throw new Error("No file selected");
+    }
+    
+    // 重置进度
+    step2FlashProgress.value = 0;
+    
     const result = await invoke<string>("flash_to_partition", {
-      filePath: files.value.ubootBin[0].fullPath,
+      filePath,
       partition: "ram",
       device: selectedDevice.value,
       onEvent: onProgressEvent,
     });
-    files.value.ubootBin[0].status = "finished";
+    
+    if (files.value.ubootBin.length) {
+      files.value.ubootBin[0].status = "finished";
+    }
+    
     status.value = result;
     if (result.includes("success")) {
       nextStep();
     }
   } catch (error: any) {
     status.value = `Error: ${error}`;
-    files.value.ubootBin[0].status = "error";
+    if (files.value.ubootBin.length) {
+      files.value.ubootBin[0].status = "error";
+    }
   } finally {
     isProcessing.value = false;
   }
@@ -271,15 +288,23 @@ async function connectToStage2() {
 }
 
 async function flashFilesToDevice() {
-  if (!files.value.ubootBin.length || !files.value.bootExt4.length || !files.value.rootExt4.length) return;
   isProcessing.value = true;
   status.value = "Flashing files to device...";
+  
+  // 重置进度信息
+  step5FlashProgress.value = {
+    currentStep: '',
+    percentage: 0,
+    currentFile: 0,
+    totalFiles: 3 // uboot, boot, root
+  };
   
   const onProgressEvent = new Channel<UploadProgressEvent>();
   onProgressEvent.onmessage = (event) => {
     const { current, total } = event.data;
-    const percentage = current / total * 100;
+    const percentage = parseFloat(((current / total) * 100).toFixed(1));
 
+    // 更新本地文件进度
     if (files.value.ubootBin[0]?.status === "uploading") {
       files.value.ubootBin[0].percentage = percentage;
     } else if (files.value.bootExt4[0]?.status === "uploading") {
@@ -287,38 +312,105 @@ async function flashFilesToDevice() {
     } else if (files.value.rootExt4[0]?.status === "uploading") {
       files.value.rootExt4[0].percentage = percentage;
     }
+    
+    // 更新在线镜像进度，限制为一位小数
+    step5FlashProgress.value.percentage = percentage;
   };
 
   try {
-    // Flash uboot
-    files.value.ubootBin[0].status = "uploading";
-    await invoke<string>("flash_to_partition", {
-      filePath: files.value.ubootBin[0].fullPath,
-      partition: "uboot",
-      device: selectedDevice.value,
-      onEvent: onProgressEvent,
-    });
-    files.value.ubootBin[0].status = "finished";
+    // 决定使用本地文件还是在线镜像
+    if (files.value.ubootBin.length && files.value.bootExt4.length && files.value.rootExt4.length) {
+      // 使用本地文件
+      // Flash uboot
+      files.value.ubootBin[0].status = "uploading";
+      step5FlashProgress.value.currentStep = "Flashing uboot.bin";
+      step5FlashProgress.value.currentFile = 1;
+      await invoke<string>("flash_to_partition", {
+        filePath: files.value.ubootBin[0].fullPath,
+        partition: "uboot",
+        device: selectedDevice.value,
+        onEvent: onProgressEvent,
+      });
+      files.value.ubootBin[0].status = "finished";
 
-    // Flash boot
-    files.value.bootExt4[0].status = "uploading";
-    await invoke<string>("flash_to_partition", {
-      filePath: files.value.bootExt4[0].fullPath,
-      partition: "boot",
-      device: selectedDevice.value,
-      onEvent: onProgressEvent,
-    });
-    files.value.bootExt4[0].status = "finished";
+      // Flash boot
+      files.value.bootExt4[0].status = "uploading";
+      step5FlashProgress.value.currentStep = "Flashing boot.ext4";
+      step5FlashProgress.value.currentFile = 2;
+      step5FlashProgress.value.percentage = 0; // 重置进度
+      await invoke<string>("flash_to_partition", {
+        filePath: files.value.bootExt4[0].fullPath,
+        partition: "boot",
+        device: selectedDevice.value,
+        onEvent: onProgressEvent,
+      });
+      files.value.bootExt4[0].status = "finished";
 
-    // Flash root
-    files.value.rootExt4[0].status = "uploading";
-    await invoke<string>("flash_to_partition", {
-      filePath: files.value.rootExt4[0].fullPath,
-      partition: "root",
-      device: selectedDevice.value,
-      onEvent: onProgressEvent,
-    });
-    files.value.rootExt4[0].status = "finished";
+      // Flash root
+      files.value.rootExt4[0].status = "uploading";
+      step5FlashProgress.value.currentStep = "Flashing root.ext4";
+      step5FlashProgress.value.currentFile = 3;
+      step5FlashProgress.value.percentage = 0; // 重置进度
+      await invoke<string>("flash_to_partition", {
+        filePath: files.value.rootExt4[0].fullPath,
+        partition: "root",
+        device: selectedDevice.value,
+        onEvent: onProgressEvent,
+      });
+      files.value.rootExt4[0].status = "finished";
+    } else if (selectedImageVariant.value) {
+      // 使用在线镜像
+      const ubootBinary = selectedImageVariant.value.image_binarys.find(
+        binary => binary.binary_type === 'UBoot' && binary.local_path
+      );
+      const bootBinary = selectedImageVariant.value.image_binarys.find(
+        binary => binary.binary_type === 'Boot' && binary.local_path
+      );
+      const rootBinary = selectedImageVariant.value.image_binarys.find(
+        binary => binary.binary_type === 'Root' && binary.local_path
+      );
+
+      if (!ubootBinary?.local_path || !bootBinary?.local_path || !rootBinary?.local_path) {
+        throw new Error("Missing required binaries in selected image variant");
+      }
+
+      // Flash uboot
+      step5FlashProgress.value.currentStep = `Flashing ${ubootBinary.name}`;
+      step5FlashProgress.value.currentFile = 1;
+      status.value = `Flashing ${ubootBinary.name} to uboot partition...`;
+      await invoke<string>("flash_to_partition", {
+        filePath: ubootBinary.local_path,
+        partition: "uboot",
+        device: selectedDevice.value,
+        onEvent: onProgressEvent,
+      });
+
+      // Flash boot
+      step5FlashProgress.value.currentStep = `Flashing ${bootBinary.name}`;
+      step5FlashProgress.value.currentFile = 2;
+      step5FlashProgress.value.percentage = 0; // 重置进度
+      status.value = `Flashing ${bootBinary.name} to boot partition...`;
+      await invoke<string>("flash_to_partition", {
+        filePath: bootBinary.local_path,
+        partition: "boot",
+        device: selectedDevice.value,
+        onEvent: onProgressEvent,
+      });
+
+      // Flash root
+      step5FlashProgress.value.currentStep = `Flashing ${rootBinary.name}`;
+      step5FlashProgress.value.currentFile = 3;
+      step5FlashProgress.value.percentage = 0; // 重置进度
+      status.value = `Flashing ${rootBinary.name} to root partition...`;
+      await invoke<string>("flash_to_partition", {
+        filePath: rootBinary.local_path,
+        partition: "root",
+        device: selectedDevice.value,
+        onEvent: onProgressEvent,
+      });
+    } else {
+      throw new Error("No files selected for flashing");
+    }
 
     status.value = "All files flashed successfully.";
     nextStep();
@@ -332,9 +424,13 @@ async function flashFilesToDevice() {
     } else if (files.value.rootExt4[0]?.status === "uploading") {
       files.value.rootExt4[0].status = "error";
       status.value = `Error flashing root.ext4: ${error.message}`;
+    } else {
+      status.value = `Error flashing files: ${error.message}`;
     }
   } finally {
     isProcessing.value = false;
+    // 完成后清空进度信息
+    step5FlashProgress.value.currentStep = '';
   }
 }
 

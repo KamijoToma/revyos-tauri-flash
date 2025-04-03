@@ -165,7 +165,7 @@ onUnmounted(() => {
 // 计算下载百分比
 const getProgressPercentage = (progress: DownloadProgress) => {
     if (progress.total === 0) return 0;
-    return Math.round((progress.current / progress.total) * 100);
+    return Math.floor((progress.current / progress.total) * 100);
 };
 
 // 格式化文件大小
@@ -186,7 +186,7 @@ const formatSpeed = (bytesPerSecond: number) => {
     const k = 1024;
     
     if (bytesPerSecond < k) {
-        return `${bytesPerSecond.toFixed(1)} B/s`;
+        return `${bytesPerSecond.toFixed(0)} B/s`;
     } else if (bytesPerSecond < k * k) {
         return `${(bytesPerSecond / k).toFixed(1)} KB/s`;
     } else if (bytesPerSecond < k * k * k) {
