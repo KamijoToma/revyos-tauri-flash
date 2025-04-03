@@ -3,6 +3,7 @@ use tauri::Emitter;
 use tauri::{command, ipc::Channel};
 use crate::usb::{USBDevice, list_devices};
 use crate::flash::flash;
+use crate::image::ProgressType;
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase", tag = "event", content = "data")]
@@ -17,6 +18,7 @@ pub struct DownloadProgressPayload {
     filename: String,
     current: u64,
     total: u64,
+    progress_type: String, // "download" 或 "extract"
 }
 
 #[command]
@@ -85,11 +87,17 @@ pub async fn download_image_variant(
     window: tauri::Window
 ) -> Result<String, String> {
     // 创建进度回调函数
-    let progress_callback = move |filename: &str, current: u64, total: u64| {
+    let progress_callback = move |filename: &str, current: u64, total: u64, progress_type: ProgressType| {
+        let progress_type_str = match progress_type {
+            ProgressType::Download => "download",
+            ProgressType::Extract => "extract",
+        };
+        
         let _ = window.emit("image-download-progress", DownloadProgressPayload {
             filename: filename.to_string(),
             current,
             total,
+            progress_type: progress_type_str.to_string(),
         });
     };
 

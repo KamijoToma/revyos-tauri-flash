@@ -31,6 +31,7 @@ interface DownloadProgress {
     prevBytes: number;    // 上次更新的字节数（用于计算瞬时速度）
     speed: number;        // 当前速度，字节/秒
     startTime: number;    // 开始下载的时间戳（用于计算平均速度）
+    progressType: string; // 'download' 或 'extract'
 }
 
 const loading = ref(true);
@@ -93,7 +94,8 @@ const handleDownloadImage = async () => {
                     lastUpdate: currentTime,
                     prevBytes: 0,
                     speed: 0,
-                    startTime: currentTime
+                    startTime: currentTime,
+                    progressType: 'download'
                 };
             }
         });
@@ -120,7 +122,7 @@ onMounted(async () => {
     loadImageVersions();
     
     unlisten = await listen('image-download-progress', (event: any) => {
-        const { filename, current, total } = event.payload;
+        const { filename, current, total, progressType } = event.payload;
         const now = Date.now();
         
         // 如果是首次更新这个文件的进度
@@ -132,7 +134,8 @@ onMounted(async () => {
                 lastUpdate: now,
                 prevBytes: 0,
                 speed: 0,
-                startTime: now
+                startTime: now,
+                progressType: progressType
             };
             return;
         }
@@ -151,6 +154,7 @@ onMounted(async () => {
         
         progress.current = current;
         progress.total = total;
+        progress.progressType = progressType;
     });
 });
 
@@ -255,18 +259,23 @@ const getEstimatedTimeRemaining = (progress: DownloadProgress) => {
                             <div class="w-full">
                                 <div class="flex justify-between mb-1">
                                     <span>{{ progress.filename }}</span>
-                                    <span>{{ getProgressPercentage(progress) }}%</span>
+                                    <span>
+                                        {{ progress.progressType === 'extract' ? '解压中: ' : '' }}
+                                        {{ getProgressPercentage(progress) }}%
+                                    </span>
                                 </div>
                                 <NProgress
                                     :percentage="getProgressPercentage(progress)"
                                     :indicator-placement="'inside'"
                                     :height="12"
+                                    :status="progress.progressType === 'extract' ? 'warning' : 'info'"
                                 />
                                 <div class="flex justify-between text-xs mt-1 text-gray-500">
                                     <span>{{ formatFileSize(progress.current) }} / {{ formatFileSize(progress.total) }}</span>
-                                    <span>{{ formatSpeed(progress.speed) }}</span>
+                                    <span v-if="progress.progressType === 'download'">{{ formatSpeed(progress.speed) }}</span>
+                                    <span v-else>解压中...</span>
                                 </div>
-                                <div class="text-right text-xs mt-1 text-gray-500">
+                                <div class="text-right text-xs mt-1 text-gray-500" v-if="progress.progressType === 'download'">
                                     <span>剩余时间: {{ getEstimatedTimeRemaining(progress) }} | 平均: {{ formatSpeed(getAverageSpeed(progress)) }}</span>
                                 </div>
                             </div>

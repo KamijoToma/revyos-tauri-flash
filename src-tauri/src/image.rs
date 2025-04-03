@@ -1,11 +1,17 @@
 use std::{collections::HashMap, path::PathBuf};
 use serde::{Serialize, Deserialize};
 use futures_lite::stream::StreamExt;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
+use async_compression::tokio::bufread::ZstdDecoder;
+/// 表示进度类型的枚举，用于区分下载还是解压缩过程;
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProgressType {
+    Download,
+    Extract,
+}
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 /// ImageBinaryType represents the type of image binary.
-/// It determines how the binary should be flash into the device.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ImageBinaryType {
     UBoot,
     BOOT,
@@ -26,12 +32,13 @@ pub struct ImageBinary {
 }
 
 pub enum ImageBinaryHashError {
-    HashTypeNotFound,
-    HashValueNotFound,
+    HashTypeNotFound,// Hash type for the binary, e.g., SHA256, MD5, etc.
+    HashValueNotFound,// Hash value for the binary, e.g., SHA256, MD5, etc.
     Mismatch,
 }
 
 impl ImageBinary {
+
     pub fn new(name: String, web_path: Option<String>, local_path: Option<String>, binary_type: ImageBinaryType, hash_type: Option<String>, hash_value: Option<String>) -> Result<Self, &'static str> {
         if web_path.is_none() && local_path.is_none() {
             return Err("Either web_path or local_path must be provided.");
@@ -77,26 +84,42 @@ impl ImageVariant {
         let mut path = std::env::temp_dir();
         path.push("revyos-imager");
         path.push(name);
-        path.push(binary_name);
+        path.push(if binary_name.ends_with(".zst") {
+            binary_name.trim_end_matches(".zst").to_string()
+        } else {
+            binary_name.to_string()
+        });
         path
     }
+
+    async fn check_zst_file(file_path: &PathBuf) -> Result<bool, String> {
+        let file = tokio::fs::File::open(file_path).await.map_err(|e| e.to_string())?;
+        let mut reader = BufReader::new(file);
+        let mut buffer = [0; 4];
+        reader.read_exact(&mut buffer).await.map_err(|e| e.to_string())?;
+        Ok(buffer == [0x28, 0xb5, 0x2f, 0xfd])
+    }
+
     /// Download all binaries in this variant.
     pub async fn download_binaries<F>(&mut self, mut progress_callback: F) -> Result<(), String>
     where
-        F: FnMut(&str, u64, u64),
+        F: FnMut(&str, u64, u64, ProgressType),
     {
         let client = reqwest::Client::new();
         for binary in &mut self.image_binarys {
+            if let Some(local_path) = &binary.local_path {
+                println!("Using local binary: {}", local_path);
+                continue;
+            }
             if let Some(web_path) = &binary.web_path {
-                // Simulate downloading the binary
-                println!("Downloading {} from {}", binary.name, web_path);
-                // Here you would implement the actual download logic.
-                // Download file to local temp dir, using reqwest
                 let file_path = ImageVariant::get_local_path(&self.name, &binary.name);
+                // first we download the file to a temp file in the same dir
+                // then we rename it to the final name
+                let temp_file_path = file_path.with_extension("tmp");
                 std::fs::create_dir_all(file_path.parent().unwrap()).map_err(|e| e.to_string())?;
-                println!("Downloading {} from {}", file_path.to_string_lossy(), web_path);
+                println!("Downloading {} from {}", temp_file_path.to_string_lossy(), web_path);
                 let response = client.get(web_path).send().await.map_err(|e| e.to_string())?;
-                let mut file = tokio::fs::File::create(&file_path).await.map_err(|e| e.to_string())?;
+                let mut file = tokio::fs::File::create(&temp_file_path).await.map_err(|e| e.to_string())?;
                 let content_size = response.content_length().ok_or("Failed to get content length")?;
                 let mut downloaded = 0;
                 let mut stream = response.bytes_stream();
@@ -104,13 +127,61 @@ impl ImageVariant {
                     let chunk = chunk.map_err(|e| e.to_string())?;
                     downloaded += chunk.len() as u64;
                     file.write_all(&chunk).await.map_err(|e| e.to_string())?;
-                    progress_callback(&binary.name, downloaded, content_size);
+                    progress_callback(&binary.name, downloaded, content_size, ProgressType::Download);
                 }
                 file.sync_all().await.map_err(|e| e.to_string())?;
-                println!("Downloaded {} to {}", binary.name, file_path.display());
-                binary.local_path = Some(file_path.to_string_lossy().to_string());
-            } else if let Some(local_path) = &binary.local_path {
-                println!("Using local binary: {}", local_path);
+                println!("Downloaded {} to {}", binary.name, temp_file_path.display());
+                
+                // 检查是否是.zst文件，如果是则异步解压缩
+                if ImageVariant::check_zst_file(&temp_file_path).await.map_err(|e| e.to_string())? {
+                    println!("Extracting {} file", temp_file_path.to_string_lossy());
+                    
+                    // 创建不带.zst后缀的输出路径
+                    let output_path = file_path;
+                    
+                    // 异步打开zst文件进行解压缩
+                    let source = tokio::fs::File::open(&temp_file_path).await.map_err(|e| e.to_string())?;
+                    let file_size = source.metadata().await.map_err(|e| e.to_string())?.len();
+                    let reader = BufReader::new(source);
+                    
+                    // 创建目标文件
+                    let mut target = tokio::fs::File::create(&output_path).await.map_err(|e| e.to_string())?;
+                    
+                    // 使用async-compression解压缩
+                    let mut decoder = ZstdDecoder::new(reader);
+                    
+                    // 读取解码后的数据并写入目标文件
+                    const CHUNK_SIZE: usize = 1024 * 1024; // 1MB chunks
+                    let mut extracted = 0u64;
+                    let mut buffer = vec![0u8; CHUNK_SIZE];
+                    
+                    // 由于我们无法提前知道解压后的大小，我们使用压缩文件的大小的估计值
+                    // 通常，压缩比在2-5倍之间，我们选择3作为估计
+                    let estimated_total = file_size * 3;
+                    
+                    loop {
+                        let bytes_read = decoder.read(&mut buffer).await.map_err(|e| e.to_string())?;
+                        if bytes_read == 0 {
+                            break;
+                        }
+                        target.write_all(&buffer[..bytes_read]).await.map_err(|e| e.to_string())?;
+                        extracted += bytes_read as u64;
+                        progress_callback(&binary.name, extracted, estimated_total, ProgressType::Extract);
+                    }
+                    
+                    target.flush().await.map_err(|e| e.to_string())?;
+                    println!("Extracted {} to {}", binary.name, output_path.display());
+                    
+                    // 使用解压后的文件路径
+                    binary.local_path = Some(output_path.to_string_lossy().to_string());
+                } else {
+                    // Rename the temp file to the final name
+                    std::fs::rename(&temp_file_path, &file_path).map_err(|e| e.to_string())?;
+                    println!("Renamed {} to {}", temp_file_path.to_string_lossy(), file_path.to_string_lossy());
+                    binary.local_path = Some(file_path.to_string_lossy().to_string());
+                }
+            } else {
+                return Err(format!("No web path or local path for binary: {}", binary.name));
             }
         }
         Ok(())
@@ -186,7 +257,7 @@ mod tests {
         let mut total_size = 0;
         
         // Execute the download with a simple callback that tracks progress
-        let result = variant.download_binaries(|name, progress, total| {
+        let result = variant.download_binaries(|name, progress, total, progress_type| {
             assert_eq!(name, "u-boot.bin");
             received_progress = progress;
             total_size = total;
@@ -222,7 +293,7 @@ mod tests {
             name: "test-variant".to_string(),
             image_binarys: vec![
                 ImageBinary {
-                    name: "u-boot.bin".to_string(),
+                    name: "boot-lpi4a-20250323_154524.ext4.zst".to_string(),
                     web_path: Some("https://fast-mirror.isrc.ac.cn/revyos/extra/images/lpi4a/20250323/boot-lpi4a-20250323_154524.ext4.zst".to_string()),
                     local_path: None,
                     binary_type: ImageBinaryType::UBoot,
@@ -235,7 +306,7 @@ mod tests {
         // Progress tracking variables to verify callback
         let mut total_size = 0;
         // Execute the download with a simple callback that tracks progress
-        let result = variant.download_binaries(|_, _, total| {
+        let result = variant.download_binaries(|_, _, total, _| {
             total_size = total;
         }).await;
         // Verify results
@@ -249,9 +320,6 @@ mod tests {
         if let Some(path_str) = &binary.local_path {
             let path = std::path::Path::new(path_str);
             assert!(path.exists(), "Downloaded file should exist");
-            // verify file size
-            let file_size = std::fs::metadata(path).unwrap().len();
-            assert_eq!(file_size, total_size, "File size should match total size");
             
             // Clean up the test file
             if path.exists() {
@@ -292,7 +360,7 @@ mod tests {
         let mut total_size = 0;
         
         // Execute the download with a simple callback that tracks progress
-        let result = variant.download_binaries(|name, progress, total| {
+        let result = variant.download_binaries(|name, progress, total, progress_type| {
             assert_eq!(name, "u-boot.bin");
             received_progress = progress;
             total_size = total;
